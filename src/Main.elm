@@ -56,8 +56,7 @@ type alias Count = Int
 generateDeck =
   let
     product : List a -> List (a -> b) -> List b
-    product l1 =
-      List.map (\b -> List.map b l1) >> List.concat
+    product l1 = List.map (\b -> List.map b l1) >> List.concat
   in
     [CardData]
       |> product [Rectangle, Tilde, Ellipse]
@@ -159,33 +158,39 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
       Nothing ->
         model
       Just player ->
-        if Set.size selectedCards == 3
+        if Set.size selectedCards /= 3
         then
+          model
+        else
           if checkTriple selectedCards
           then
-            { model |
-              players =
+            let
+              newPlayers =
                 Array.set
-                  selectedPlayer
-                  { player | score = player.score + 3 }
-                  players
-            , selectedPlayer = -1
-            , selectedCards = Set.empty
-            , cards =
+                    selectedPlayer
+                    { player | score = player.score + 3 }
+                    players
+              (newCards, newDeck) =
                 if List.length cards > 12
-                then removeSelectedCards selectedCards cards
-                else replaceSelectedCards selectedCards deck cards
-            , deck =
-                if List.length cards > 12
-                then deck
-                else List.drop 3 deck
-            }
+                then
+                  (removeSelectedCards selectedCards cards, deck)
+                else
+                  (replaceSelectedCards selectedCards deck cards
+                  , List.drop 3 deck
+                  )
+            in
+              { model |
+                players = newPlayers
+              , selectedPlayer = -1
+              , cards = newCards
+              , deck = newDeck
+              , selectedCards = Set.empty
+              }
           else
             { model |
               selectedPlayer = -1
             , selectedCards = Set.empty
             }
-        else model
 
 checkTriple : Set Card -> Bool
 checkTriple selected =
@@ -216,7 +221,9 @@ viewPlayers : Array Player -> Int -> Html Msg
 viewPlayers players selectedPlayer =
   div
     [ id "players" ]
-    (Array.toList <| Array.indexedMap (\i p -> viewPlayer i p <| i == selectedPlayer) players)
+    (List.indexedMap
+      (\i p -> viewPlayer i p <| i == selectedPlayer)
+      (Array.toList players))
 
 viewPlayer : Int -> Player -> Bool -> Html Msg
 viewPlayer index { name, score } selected =
@@ -256,7 +263,8 @@ wrapSvg child =
   Svg.svg
     [ SvgA.width <| String.fromInt symbolWidth
     , SvgA.height <| String.fromInt symbolHeight
-    , SvgA.viewBox <| "0 0 " ++ (String.fromInt symbolWidth) ++ " " ++ (String.fromInt symbolHeight)
+    , SvgA.viewBox ([0, 0, symbolWidth, symbolHeight]
+                    |> List.map String.fromInt |> String.join " ")
     ]
     [ child ]
 
