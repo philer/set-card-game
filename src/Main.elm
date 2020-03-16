@@ -7,7 +7,6 @@ import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
-import List.Extra exposing (cartesianProduct)
 import Random
 import Random.List exposing (shuffle)
 import Set exposing (Set)
