@@ -321,29 +321,25 @@ viewCard card selected =
         div [ class "card" ] [ text "???" ]
 
 
-
 -- SVG VIEW
 
 shape2svg : Shape -> Pattern -> Color -> Svg.Svg Msg
 shape2svg shape pattern color =
-  case shape of
-    Rectangle -> rectangle pattern color
-    Tilde -> tilde pattern color
-    Ellipse -> ellipse pattern color
-
-wrapSvg : Svg.Svg Msg -> Svg.Svg Msg
-wrapSvg child =
   Svg.svg
     [ SvgA.width <| String.fromInt symbolWidth
     , SvgA.height <| String.fromInt symbolHeight
     , SvgA.viewBox ([0, 0, symbolWidth, symbolHeight]
                     |> List.map String.fromInt |> String.join " ")
     ]
-    [ child ]
+    [ case shape of
+        Rectangle -> rectangle pattern color
+        Tilde -> tilde pattern color
+        Ellipse -> ellipse pattern color
+    ]
 
 rectangle : Pattern -> Color -> Svg.Svg Msg
 rectangle pattern color =
-  wrapSvg <| Svg.rect
+  Svg.rect
     [ SvgA.x <| String.fromFloat (symbolStroke / 2)
     , SvgA.y <| String.fromFloat (symbolStroke / 2)
     , SvgA.width <| String.fromFloat (symbolWidth - 2 * symbolStroke)
@@ -355,7 +351,7 @@ tildePath = "m34.2 1c-25.3 0-36.4 23.7-32.4 34.6 3.9 10.7 16.5-6.3 31.1-6.8 16.4
 
 tilde : Pattern -> Color -> Svg.Svg Msg
 tilde pattern color =
-  wrapSvg <| Svg.path
+  Svg.path
     [ SvgA.x <| String.fromFloat (symbolStroke / 2)
     , SvgA.y <| String.fromFloat (symbolStroke / 2)
     , SvgA.d tildePath
@@ -364,7 +360,7 @@ tilde pattern color =
 
 ellipse : Pattern -> Color -> Svg.Svg Msg
 ellipse pattern color =
-  wrapSvg <| Svg.ellipse
+  Svg.ellipse
     [ SvgA.cx <| String.fromFloat (symbolWidth / 2)
     , SvgA.cy <| String.fromFloat (symbolHeight / 2)
     , SvgA.rx <| String.fromFloat ((symbolWidth - symbolStroke) / 2)
