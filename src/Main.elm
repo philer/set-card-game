@@ -1,7 +1,9 @@
 module Main exposing (main)
 
+import Array exposing (Array)
 import Browser
 import Debug
+import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
@@ -22,6 +24,53 @@ symbolWidth = 120
 symbolHeight = 50
 symbolStroke = 2
 
+
+-- MODEL
+
+type alias Model =
+  { players : Array Player
+  , selectedPlayer : Int
+  , deck : List Card
+  , cards : List Card
+  , selectedCards : Set Card
+  }
+
+type alias Player =
+  { name : String
+  , score : Int
+  }
+
+type alias Card = Int
+
+type alias CardData =
+  { shape : Shape
+  , pattern : Pattern
+  , color : Color
+  , count : Count
+  }
+
+type Shape = Rectangle | Tilde | Ellipse
+type Pattern = Full | Half | Empty
+type alias Color = String
+type alias Count = Int
+
+generateDeck =
+  let
+    product : List a -> List (a -> b) -> List b
+    product l1 =
+      List.map (\b -> List.map b l1) >> List.concat
+  in
+    [CardData]
+      |> product [Rectangle, Tilde, Ellipse]
+      |> product [Full, Half, Empty]
+      |> product [red, green, blue]
+      |> product [1, 2, 3]
+
+cardData : Card -> Maybe CardData
+cardData id =
+  Array.get id (Array.fromList generateDeck)
+
+
 -- MAIN
 
 main : Program () Model Msg
@@ -33,155 +82,165 @@ main =
     , subscriptions = \_ -> Sub.none
     }
 
-
-type alias Model =
-  { players : List Player
-  , selectedPlayer : Maybe Player
-  , deck : List Card
-  , cards : List Card
-  , selectedCards : Set Card
-  }
-
-type alias Player =
-  { name : String
-  , score : Int
-  }
-
-type Shape = Rectangle | Tilde | Ellipse
-shapes n =
-  case n of
-    0 -> Rectangle
-    1 -> Tilde
-    2 -> Ellipse
-
-type Pattern = Full | Half | Empty
-patterns n =
-  case n of
-    0 -> Full
-    1 -> Half
-    2 -> Empty
-
-type alias Color = String
-colors n =
-  case n of
-    0 -> red
-    1 -> green
-    2 -> blue
-
-type alias Count = Int
-counts n =
-  case n of
-    0 -> 0
-    1 -> 1
-    2 -> 2
-
-
-type alias Card =
-  { shape : Shape
-  , pattern : Pattern
-  , color : Color
-  , count : Count
-  }
-
-int2card : Int -> Card
-int2card n =
-  let
-    countIdx = modBy 3 n + 1
-    shapeIdx = modBy 9 n |> remainderBy 3
-    patternIdx = (modBy 27 n |> remainderBy 9) // 3
-    colorIdx = (remainderBy 27 n) // 9
-  in
-    { shape = shapes shapeIdx
-    , pattern = patterns patternIdx
-    , color = colors colorIdx
-    , count = counts countIdx
-    }
-
---patterns = [Full, Half, Empty]
---colors = [red, green, blue]
-
---sortedDeck : List Card
---sortedDeck =
---    cartesianProduct
---      [ [Rectangle, Tilde, Ellipse]
---      , [Full, Half, Empty]
---      , [red, green, blue]
---      , [1, 2, 3]
---      ]
-
 init : flags -> ( Model, Cmd Msg )
 init _ =
-  ( { players =
+  (  { players = Array.fromList
       [ Player "Philipp" 0
       , Player "Susanne" 0
       ]
-    , selectedPlayer = Nothing
+    , selectedPlayer = -1
     , deck = []
     , cards = []
     , selectedCards = Set.empty
     }
-  , Random.generate StartGame (shuffle <| List.map int2card <| List.range 0 80)
+  , Random.generate StartGame (shuffle <| List.range 0 80)
   )
 
 
 type Msg
   = StartGame (List Card)
-  | SelectPlayer Player
-  --| SelectCard Card
-  --| UpdateCheck
+  | SelectPlayer Int
+  | SelectCard Card
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    StartGame deck -> ({ model | deck = Debug.log "deck" deck }, Cmd.none)
-    SelectPlayer player ->
-      ( { model | selectedPlayer = Just player }
+    StartGame deck ->
+      ( { model |
+          deck = List.drop 12 deck
+        , cards =  List.take 12 deck
+        }
       , Cmd.none
       )
-    --SelectCard card ->
-    --  ( { model | selectedCards =
-    --      (if Set.member card model.selectedCards then Set.remove else Set.insert)
-    --      card
-    --      model.selectedCards
-    --    }
-    --  , UpdateCheck
-    --  )
-    --UpdateCheck ->
-    --  ( model, Cmd.none )
+    SelectPlayer index ->
+      ( attemptGuess
+          { model | selectedPlayer = index }
+      , Cmd.none
+      )
+    SelectCard card ->
+      ( attemptGuess
+          { model | selectedCards =
+            let
+              selected = model.selectedCards
+            in
+              if Set.member card selected
+              then Set.remove card selected
+              else if Set.size selected < 3
+                   then Set.insert card selected
+                   else selected
+          }
+      , Cmd.none
+      )
+
+removeSelectedCards : Set Card -> List Card -> List Card
+removeSelectedCards selected =
+  List.filter (\card -> not <| Set.member card selected)
+
+replaceSelectedCards : Set Card -> List Card -> List Card -> List Card
+replaceSelectedCards selected deck =
+  let
+    zip : List a -> List a -> List (a, a)
+    zip = List.map2 Tuple.pair
+
+    replacements : Dict Card Card
+    replacements = Dict.fromList <| zip (Set.toList selected) deck
+
+    replace : Card -> Card
+    replace card =
+      case Dict.get card replacements of
+        Just newCard -> newCard
+        Nothing -> card
+  in
+    List.map replace
+
+attemptGuess : Model -> Model
+attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
+    case Array.get selectedPlayer players of
+      Nothing ->
+        model
+      Just player ->
+        if Set.size selectedCards == 3
+        then
+          if checkTriple selectedCards
+          then
+            { model |
+              players =
+                Array.set
+                  selectedPlayer
+                  { player | score = player.score + 3 }
+                  players
+            , selectedPlayer = -1
+            , selectedCards = Set.empty
+            , cards =
+                if List.length cards > 12
+                then removeSelectedCards selectedCards cards
+                else replaceSelectedCards selectedCards deck cards
+            , deck =
+                if List.length cards > 12
+                then deck
+                else List.drop 3 deck
+            }
+          else
+            { model |
+              selectedPlayer = -1
+            , selectedCards = Set.empty
+            }
+        else model
+
+checkTriple : Set Card -> Bool
+checkTriple selected =
+  let
+    cards = Set.toList selected
+    validSum = \n -> Set.member n (Set.fromList [0, 3, 6])
+  in
+    List.all validSum
+      <| List.map
+          (\n -> List.sum <| List.map (\x -> modBy 3 (x // n)) cards)
+          [1, 3, 9, 27]
 
 
 -- VIEW
 
 view : Model -> List (Html Msg)
-view model =
+view { players, selectedPlayer, cards, selectedCards } =
   [ aside [ id "sidebar" ]
     [ h1 [] [ text "SET!" ]
-    , viewPlayers model.players model.selectedPlayer
+    , viewPlayers players selectedPlayer
     ]
-  , main_ [id "main" ] []
+  , main_ [ id "main" ]
+    [ div [ id "cards" ]
+      (List.map (\c -> viewCard c <| Set.member c selectedCards) cards) ]
   ]
 
-viewPlayers : List Player -> Maybe Player -> Html Msg
+viewPlayers : Array Player -> Int -> Html Msg
 viewPlayers players selectedPlayer =
   div
     [ id "players" ]
-    (List.map (\p -> viewPlayer p <| Just p == selectedPlayer) players)
-    --(List.map2 viewPlayer players (List.map ((==) selectedPlayer) (List.map Just players)))
+    (Array.toList <| Array.indexedMap (\i p -> viewPlayer i p <| i == selectedPlayer) players)
 
-viewPlayer : Player -> Bool -> Html Msg
-viewPlayer player selected =
+viewPlayer : Int -> Player -> Bool -> Html Msg
+viewPlayer index { name, score } selected =
   div
     [ class <| "player" ++ if selected then " selected" else ""
-    , onClick <| SelectPlayer player
+    , onClick <| SelectPlayer index
     ]
-    [ span [ class "player-name" ] [ text player.name ]
-    , span [ class "player-score" ] [ text (String.fromInt player.score) ]
+    [ span [ class "player-name" ] [ text name ]
+    , span [ class "player-score" ] [ text (String.fromInt score) ]
     ]
 
-viewCard : Card -> Html Msg
-viewCard card =
-  div [ class "card" ] (List.repeat card.count (shape2svg card.shape card.pattern card.color))
+viewCard : Card -> Bool -> Html Msg
+viewCard card selected =
+    case cardData card of
+      Just {count, shape, pattern, color} ->
+        div
+          [ class <| "card" ++ if selected then " selected" else ""
+          , onClick <| SelectCard card
+          ]
+          (List.repeat count <| shape2svg shape pattern color)
+      Nothing ->  -- should be impossible
+        div [ class "card" ] [ text "???" ]
+
 
 
 -- SVG VIEW
@@ -239,5 +298,6 @@ svgStyles pattern color =
     [ "stroke:" ++ color
     , "stroke-width:" ++ String.fromInt symbolStroke
     , "fill:" ++ color
-    , "fill-opacity:" ++ if pattern == Full then "1" else if pattern == Half then "0.2" else "0"
+    , "fill-opacity:" ++ if pattern == Full then "1"
+                         else if pattern == Half then "0.2" else "0"
     ]
