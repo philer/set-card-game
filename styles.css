@@ -57,14 +57,14 @@ h1 {
     align-items: center;
 }
 .button:hover,
-.player:not(.locked):hover,
+.player:not(.blocked):hover,
 .player.selected {
     background: #eee;
 }
 .player.selected {
     border-color: #888;
 }
-.player.locked {
+.player.blocked {
     color: #ccc;
     border-color: #eee;
     cursor: default;

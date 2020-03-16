@@ -37,6 +37,7 @@ type alias Model =
 type alias Player =
   { name : String
   , score : Int
+  , blocked : Bool
   }
 
 type alias Card = Int
@@ -83,8 +84,8 @@ main =
 init : flags -> ( Model, Cmd Msg )
 init _ =
   (  { players = Array.fromList
-      [ Player "Philipp" 0
-      , Player "Susanne" 0
+      [ Player "Philipp" 0 False
+      , Player "Susanne" 0 False
       ]
     , selectedPlayer = -1
     , deck = []
@@ -96,7 +97,8 @@ init _ =
 
 
 type Msg
-  = StartGame (List Card)
+  = NoOp
+  | StartGame (List Card)
   | SelectPlayer Int
   | SelectCard Card
 
@@ -104,6 +106,8 @@ type Msg
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
+    NoOp ->
+      (model, Cmd.none)
     StartGame deck ->
       ( { model |
           deck = List.drop 12 deck
@@ -122,14 +126,67 @@ update msg model =
             let
               selected = model.selectedCards
             in
-              if Set.member card selected
-              then Set.remove card selected
-              else if Set.size selected < 3
-                   then Set.insert card selected
-                   else selected
+              if Set.member card selected then
+                Set.remove card selected
+              else if Set.size selected < 3 then
+                Set.insert card selected
+              else
+                selected
           }
       , Cmd.none
       )
+
+attemptGuess : Model -> Model
+attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
+    case Array.get selectedPlayer players of
+      Nothing ->
+        model
+      Just player ->
+        if Set.size selectedCards /= 3 then
+          model
+        else if checkTriple selectedCards then
+          let
+            (newCards, newDeck) =
+              if List.length cards > 12 then
+                (removeSelectedCards selectedCards cards, deck)
+              else
+                (replaceSelectedCards selectedCards deck cards
+                , List.drop 3 deck
+                )
+          in
+            { model |
+              players =
+                Array.set
+                  selectedPlayer
+                  { player | score = player.score + 3 }
+                  players
+            , selectedPlayer = -1
+            , cards = newCards
+            , deck = newDeck
+            , selectedCards = Set.empty
+            }
+        else
+          checkBlocked
+            { model |
+                players =
+                  Array.set
+                    selectedPlayer
+                    { player | blocked = True }
+                    players
+            , selectedPlayer = -1
+            , selectedCards = Set.empty
+            }
+
+checkTriple : Set Card -> Bool
+checkTriple selected =
+  let
+    cards = Set.toList selected
+    validSum = \n -> Set.member n (Set.fromList [0, 3, 6])
+  in
+    List.all validSum
+      <| List.map
+          (\n -> List.sum <| List.map (\x -> modBy 3 (x // n)) cards)
+          [1, 3, 9, 27]
 
 removeSelectedCards : Set Card -> List Card -> List Card
 removeSelectedCards selected =
@@ -152,56 +209,22 @@ replaceSelectedCards selected deck =
   in
     List.map replace
 
-attemptGuess : Model -> Model
-attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
-    case Array.get selectedPlayer players of
-      Nothing ->
-        model
-      Just player ->
-        if Set.size selectedCards /= 3
-        then
-          model
-        else
-          if checkTriple selectedCards
-          then
-            let
-              newPlayers =
-                Array.set
-                    selectedPlayer
-                    { player | score = player.score + 3 }
-                    players
-              (newCards, newDeck) =
-                if List.length cards > 12
-                then
-                  (removeSelectedCards selectedCards cards, deck)
-                else
-                  (replaceSelectedCards selectedCards deck cards
-                  , List.drop 3 deck
-                  )
-            in
-              { model |
-                players = newPlayers
-              , selectedPlayer = -1
-              , cards = newCards
-              , deck = newDeck
-              , selectedCards = Set.empty
-              }
-          else
-            { model |
-              selectedPlayer = -1
-            , selectedCards = Set.empty
-            }
-
-checkTriple : Set Card -> Bool
-checkTriple selected =
+checkBlocked : Model -> Model
+checkBlocked ({ players } as model) =
   let
-    cards = Set.toList selected
-    validSum = \n -> Set.member n (Set.fromList [0, 3, 6])
+    unblocked =
+      Array.toIndexedList players
+        |> List.filter (Tuple.second >> .blocked >> not)
   in
-    List.all validSum
-      <| List.map
-          (\n -> List.sum <| List.map (\x -> modBy 3 (x // n)) cards)
-          [1, 3, 9, 27]
+    case Debug.log "unblocked" unblocked of
+      [] ->
+        -- all blocked -> unblock all
+        { model | players = Array.map (\p -> { p | blocked = False }) players }
+      --(lastPlayerIndex, _) :: [] ->
+      --  -- only one player left -> select them
+      --  { model | selectedPlayer = lastPlayerIndex }
+      _ ->
+        model
 
 
 -- VIEW
@@ -226,10 +249,14 @@ viewPlayers players selectedPlayer =
       (Array.toList players))
 
 viewPlayer : Int -> Player -> Bool -> Html Msg
-viewPlayer index { name, score } selected =
+viewPlayer index { name, score, blocked } selected =
   div
-    [ class <| "player" ++ if selected then " selected" else ""
-    , onClick <| SelectPlayer index
+    [ classList
+      [ ("player", True)
+      , ("selected", selected)
+      , ("blocked", blocked)
+      ]
+    , onClick <| if blocked then NoOp else SelectPlayer index
     ]
     [ span [ class "player-name" ] [ text name ]
     , span [ class "player-score" ] [ text (String.fromInt score) ]
@@ -240,7 +267,7 @@ viewCard card selected =
     case cardData card of
       Just {count, shape, pattern, color} ->
         div
-          [ class <| "card" ++ if selected then " selected" else ""
+          [ classList [ ("card", True), ("selected", selected) ]
           , onClick <| SelectCard card
           ]
           (List.repeat count <| shape2svg shape pattern color)
