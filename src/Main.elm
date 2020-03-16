@@ -8,6 +8,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Html.Lazy exposing (lazy2, lazy3)
+import List.Extra exposing (cartesianProduct)
 import Random
 import Random.List exposing (shuffle)
 import Set exposing (Set)
@@ -33,6 +34,7 @@ type alias Model =
   , deck : List Card
   , cards : List Card
   , selectedCards : Set Card
+  , validTriple : Maybe (List Card)
   }
 
 type alias Player =
@@ -94,6 +96,7 @@ init _ =
     , deck = []
     , cards = []
     , selectedCards = Set.empty
+    , validTriple = Nothing
     }
 
 
@@ -101,6 +104,7 @@ type Msg
   = NoOp
   | SetupGame
   | SetDeck (List Card)
+  | AddCards
   | SelectPlayer Int
   | SelectCard Card
 
@@ -119,6 +123,19 @@ update msg model =
         }
       , Cmd.none
       )
+    AddCards ->
+      case findValidTriple model.cards |> Debug.log "valid triple?" of
+        Nothing ->
+          ( { model |
+              deck = List.drop 3 model.deck
+            , cards = model.cards ++ List.take 3 model.deck
+            }
+          , Cmd.none
+          )
+        validTriple ->
+          ( { model | validTriple = validTriple }
+          , Cmd.none
+          )
     SelectPlayer index ->
       ( attemptGuess
           { model | selectedPlayer = index }
@@ -148,7 +165,7 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
       Just player ->
         if Set.size selectedCards /= 3 then
           model
-        else if checkTriple selectedCards then
+        else if checkTriple (Set.toList selectedCards) then
           let
             (newCards, newDeck) =
               if List.length cards > 12 then
@@ -168,6 +185,7 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
             , cards = newCards
             , deck = newDeck
             , selectedCards = Set.empty
+            , validTriple = Nothing
             }
         else
           checkBlocked
@@ -179,12 +197,12 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
                     players
             , selectedPlayer = -1
             , selectedCards = Set.empty
+            , validTriple = Nothing
             }
 
-checkTriple : Set Card -> Bool
-checkTriple selected =
+checkTriple : List Card -> Bool
+checkTriple cards =
   let
-    cards = Set.toList selected
     validSum = \n -> Set.member n (Set.fromList [0, 3, 6])
   in
     List.all validSum
@@ -230,14 +248,31 @@ checkBlocked ({ players } as model) =
       _ ->
         model
 
+findValidTriple : List Card -> Maybe (List Card)
+findValidTriple cards =
+  List.foldl
+    (\triple result ->
+      if result == Nothing && Set.size (Set.fromList triple) == 3
+                           && checkTriple triple then
+        Just triple
+      else
+        result
+    )
+    Nothing
+    -- TODO optimization: lazy product without duplicates
+    (cartesianProduct [ cards, cards, cards ])
+
 
 -- VIEW
 
 view : Model -> List (Html Msg)
-view { players, selectedPlayer, cards, selectedCards } =
+view { players, selectedPlayer, cards, selectedCards, validTriple } =
   [ aside [ id "sidebar" ]
     [ h1 [] [ text "SET!" ]
     , lazy2 viewPlayers players selectedPlayer
+    , div
+      [ class "button", onClick AddCards ]
+      [ text <| if validTriple == Nothing then "Possible?" else "Possible!" ]
     ]
   , main_ [ id "main" ]
     [ lazy2 viewCards cards selectedCards ]
