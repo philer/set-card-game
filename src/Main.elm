@@ -83,7 +83,9 @@ main =
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
-  (  { players = Array.fromList
+  update
+    SetupGame
+    { players = Array.fromList
       [ Player "Philipp" 0 False
       , Player "Susanne" 0 False
       ]
@@ -92,13 +94,12 @@ init _ =
     , cards = []
     , selectedCards = Set.empty
     }
-  , Random.generate StartGame (shuffle <| List.range 0 80)
-  )
 
 
 type Msg
   = NoOp
-  | StartGame (List Card)
+  | SetupGame
+  | SetDeck (List Card)
   | SelectPlayer Int
   | SelectCard Card
 
@@ -108,10 +109,12 @@ update msg model =
   case msg of
     NoOp ->
       (model, Cmd.none)
-    StartGame deck ->
+    SetupGame ->
+      ( model, Random.generate SetDeck (shuffle <| List.range 0 80) )
+    SetDeck deck ->
       ( { model |
           deck = List.drop 12 deck
-        , cards =  List.take 12 deck
+        , cards = List.take 12 deck
         }
       , Cmd.none
       )
