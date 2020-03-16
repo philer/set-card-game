@@ -110,32 +110,31 @@ type Msg
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg model =
+update msg ({cards, deck, selectedCards} as model) =
   case msg of
     NoOp ->
       (model, Cmd.none)
     SetupGame ->
       ( model, Random.generate SetDeck (shuffle <| List.range 0 80) )
-    SetDeck deck ->
+    SetDeck freshDeck ->
       ( { model |
-          deck = List.drop 12 deck
-        , cards = List.take 12 deck
+          deck = List.drop 12 freshDeck
+        , cards = List.take 12 freshDeck
         }
       , Cmd.none
       )
     AddCards ->
-      case findValidTriple model.cards |> Debug.log "valid triple?" of
-        Nothing ->
-          ( { model |
-              deck = List.drop 3 model.deck
-            , cards = model.cards ++ List.take 3 model.deck
-            }
-          , Cmd.none
-          )
-        validTriple ->
-          ( { model | validTriple = validTriple }
-          , Cmd.none
-          )
+      ( unblockAllPlayers
+          <| case findValidTriple cards |> Debug.log "valid triple?" of
+            Nothing ->
+              { model |
+                deck = List.drop 3 deck
+              , cards = cards ++ List.take 3 deck
+              }
+            validTriple ->
+              { model | validTriple = validTriple }
+      , Cmd.none
+      )
     SelectPlayer index ->
       ( attemptGuess
           { model | selectedPlayer = index }
@@ -143,16 +142,14 @@ update msg model =
       )
     SelectCard card ->
       ( attemptGuess
-          { model | selectedCards =
-            let
-              selected = model.selectedCards
-            in
-              if Set.member card selected then
-                Set.remove card selected
-              else if Set.size selected < 3 then
-                Set.insert card selected
+          { model |
+            selectedCards =
+              if Set.member card selectedCards then
+                Set.remove card selectedCards
+              else if Set.size selectedCards < 3 then
+                Set.insert card selectedCards
               else
-                selected
+                selectedCards
           }
       , Cmd.none
       )
@@ -175,20 +172,21 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
                 , List.drop 3 deck
                 )
           in
-            { model |
-              players =
-                Array.set
-                  selectedPlayer
-                  { player | score = player.score + 3 }
-                  players
-            , selectedPlayer = -1
-            , cards = newCards
-            , deck = newDeck
-            , selectedCards = Set.empty
-            , validTriple = Nothing
-            }
+            unblockAllPlayers
+              { model |
+                players =
+                  Array.set
+                    selectedPlayer
+                    { player | score = player.score + 3 }
+                    players
+              , selectedPlayer = -1
+              , cards = newCards
+              , deck = newDeck
+              , selectedCards = Set.empty
+              , validTriple = Nothing
+              }
         else
-          checkBlocked
+          checkBlockedPlayers
             { model |
                 players =
                   Array.set
@@ -231,8 +229,12 @@ replaceSelectedCards selected deck =
   in
     List.map replace
 
-checkBlocked : Model -> Model
-checkBlocked ({ players } as model) =
+unblockAllPlayers : Model -> Model
+unblockAllPlayers model =
+  { model | players = Array.map (\p -> { p | blocked = False }) model.players }
+
+checkBlockedPlayers : Model -> Model
+checkBlockedPlayers ({ players } as model) =
   let
     unblocked =
       Array.toIndexedList players
@@ -241,7 +243,7 @@ checkBlocked ({ players } as model) =
     case Debug.log "unblocked" unblocked of
       [] ->
         -- all blocked -> unblock all
-        { model | players = Array.map (\p -> { p | blocked = False }) players }
+        unblockAllPlayers model
       --(lastPlayerIndex, _) :: [] ->
       --  -- only one player left -> select them
       --  { model | selectedPlayer = lastPlayerIndex }
