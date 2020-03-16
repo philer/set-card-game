@@ -7,6 +7,7 @@ import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
+import Html.Lazy exposing (lazy2, lazy3)
 import Random
 import Random.List exposing (shuffle)
 import Set exposing (Set)
@@ -236,11 +237,10 @@ view : Model -> List (Html Msg)
 view { players, selectedPlayer, cards, selectedCards } =
   [ aside [ id "sidebar" ]
     [ h1 [] [ text "SET!" ]
-    , viewPlayers players selectedPlayer
+    , lazy2 viewPlayers players selectedPlayer
     ]
   , main_ [ id "main" ]
-    [ div [ id "cards" ]
-      (List.map (\c -> viewCard c <| Set.member c selectedCards) cards) ]
+    [ lazy2 viewCards cards selectedCards ]
   ]
 
 viewPlayers : Array Player -> Int -> Html Msg
@@ -265,6 +265,12 @@ viewPlayer index { name, score, blocked } selected =
     , span [ class "player-score" ] [ text (String.fromInt score) ]
     ]
 
+viewCards : List Card -> Set Card -> Html Msg
+viewCards cards selectedCards =
+  div
+    [ id "cards" ]
+    (List.map (\c -> lazy2 viewCard c (Set.member c selectedCards)) cards)
+
 viewCard : Card -> Bool -> Html Msg
 viewCard card selected =
     case cardData card of
@@ -273,7 +279,7 @@ viewCard card selected =
           [ classList [ ("card", True), ("selected", selected) ]
           , onClick <| SelectCard card
           ]
-          (List.repeat count <| shape2svg shape pattern color)
+          (List.repeat count <| lazy3 shape2svg shape pattern color)
       Nothing ->  -- should be impossible
         div [ class "card" ] [ text "???" ]
 
