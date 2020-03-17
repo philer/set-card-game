@@ -14,13 +14,6 @@ import Set exposing (Set)
 import Svg
 import Svg.Attributes as SvgA
 
--- CONFIG
-
-symbolWidth = 120
-symbolHeight = 50
-symbolStroke = 2
-
-
 -- MODEL
 
 type alias Model =
@@ -308,13 +301,21 @@ viewCard card selected =
 
 -- SVG VIEW
 
+symbolWidth = 120
+symbolHeight = 50
+symbolPadding = 10
+
 shape2svg : Shape -> Pattern -> Color -> Svg.Svg Msg
 shape2svg shape pattern color =
+  let
+    width = symbolWidth + 2 * symbolPadding
+    height = symbolHeight + 2 * symbolPadding
+    viewBox = [ 0, 0, width, height ]
+  in
   Svg.svg
-    [ SvgA.width <| String.fromInt symbolWidth
-    , SvgA.height <| String.fromInt symbolHeight
-    , SvgA.viewBox ([0, 0, symbolWidth, symbolHeight]
-                    |> List.map String.fromInt |> String.join " ")
+    [ SvgA.width <| String.fromInt width
+    , SvgA.height <| String.fromInt height
+    , SvgA.viewBox <| String.join " " (List.map String.fromFloat viewBox)
     ]
     [ useShape shape pattern color ]
 
@@ -339,10 +340,10 @@ rectangle =
   Svg.rect
     [ SvgA.id "shape-rectangle"
     , SvgA.class "shape"
-    , SvgA.x <| String.fromFloat (symbolStroke / 2)
-    , SvgA.y <| String.fromFloat (symbolStroke / 2)
-    , SvgA.width <| String.fromFloat (symbolWidth - 2 * symbolStroke)
-    , SvgA.height <| String.fromFloat (symbolHeight - 2 * symbolStroke)
+    , SvgA.x <| String.fromFloat symbolPadding
+    , SvgA.y <| String.fromFloat symbolPadding
+    , SvgA.width <| String.fromFloat symbolWidth
+    , SvgA.height <| String.fromFloat symbolHeight
     ] []
 
 tilde : Svg.Svg Msg
@@ -350,9 +351,9 @@ tilde =
   Svg.path
     [ SvgA.id "shape-tilde"
     , SvgA.class "shape"
-    , SvgA.x <| String.fromFloat (symbolStroke / 2)
-    , SvgA.y <| String.fromFloat (symbolStroke / 2)
-    , SvgA.d "m34.2 1c-25.3 0-36.4 23.7-32.4 34.6 3.9 10.7 16.5-6.3 31.1-6.8 16.4-0.6 31.1 20.3 52.9 20.3 25.3 0 36.4-23.7 32.4-34.6-3.9-10.7-16.5 6.3-31.1 6.8-16.4 0.6-31.1-20.3-52.9-20.3z"
+    , SvgA.x <| String.fromFloat symbolPadding
+    , SvgA.y <| String.fromFloat symbolPadding
+    , SvgA.d "m44.2 10c-25.3 0-36.4 23.7-32.4 34.6 3.9 10.7 16.5-6.3 31.1-6.8 16.4-0.6 31.1 20.3 52.9 20.3 25.3 0 36.4-23.7 32.4-34.6-3.9-10.7-16.5 6.3-31.1 6.8-16.4 0.6-31.1-20.3-52.9-20.3z"
     ] []
 
 ellipse : Svg.Svg Msg
@@ -360,10 +361,10 @@ ellipse =
   Svg.ellipse
     [ SvgA.id "shape-ellipse"
     , SvgA.class "shape"
-    , SvgA.cx <| String.fromFloat (symbolWidth / 2)
-    , SvgA.cy <| String.fromFloat (symbolHeight / 2)
-    , SvgA.rx <| String.fromFloat ((symbolWidth - symbolStroke) / 2)
-    , SvgA.ry <| String.fromFloat ((symbolHeight - symbolStroke) / 2)
+    , SvgA.cx <| String.fromFloat (symbolPadding + symbolWidth / 2)
+    , SvgA.cy <| String.fromFloat (symbolPadding + symbolHeight / 2)
+    , SvgA.rx <| String.fromFloat (symbolWidth / 2)
+    , SvgA.ry <| String.fromFloat (symbolHeight / 2)
     ] []
 
 svgPatternHatch : Color -> Svg.Svg Msg
