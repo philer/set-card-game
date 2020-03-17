@@ -154,6 +154,15 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
         if Set.size selectedCards /= 3 then
           model
         else if checkTriple (Set.toList selectedCards) then
+          let
+            (newDeck, newCards) =
+              if List.length cards <= 12 && List.length deck > 0 then
+                ( List.drop 3 deck
+                , replaceSelectedCards selectedCards deck cards
+                )
+              else
+                (deck, removeSelectedCards selectedCards cards)
+          in
             unblockAllPlayers
               { model |
                 players =
@@ -162,12 +171,8 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
                     { player | score = player.score + 3 }
                     players
               , selectedPlayer = -1
-              , deck = List.drop 3 deck
-              , cards =
-                  if List.length cards <= 12 && List.length deck > 0 then
-                    replaceSelectedCards selectedCards deck cards
-                  else
-                    removeSelectedCards selectedCards cards
+              , deck = newDeck
+              , cards = newCards
               , selectedCards = Set.empty
               , validTriple = Nothing
               }
