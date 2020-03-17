@@ -2,7 +2,6 @@ module Main exposing (main)
 
 import Array exposing (Array)
 import Browser
-import Debug
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -67,10 +66,11 @@ generateDeck =
       |> product [Full, Half, Empty]
       |> product [red, green, blue]
       |> product [1, 2, 3]
+      |> Array.fromList
 
-cardData : Card -> Maybe CardData
+cardData : Card -> Result String CardData
 cardData id =
-  Array.get id (Array.fromList generateDeck)
+  Array.get id generateDeck |> Result.fromMaybe "invalid card"
 
 
 -- MAIN
@@ -125,7 +125,7 @@ update msg ({cards, deck, selectedCards} as model) =
       )
     AddCards ->
       ( unblockAllPlayers
-          <| case findValidTriple cards |> Debug.log "valid triple?" of
+          <| case findValidTriple cards of
             Nothing ->
               { model |
                 deck = List.drop 3 deck
@@ -297,14 +297,14 @@ viewCards cards selectedCards =
 viewCard : Card -> Bool -> Html Msg
 viewCard card selected =
     case cardData card of
-      Just {count, shape, pattern, color} ->
+      Ok {count, shape, pattern, color} ->
         div
           [ classList [ ("card", True), ("selected", selected) ]
           , onClick <| SelectCard card
           ]
           (List.repeat count <| lazy3 shape2svg shape pattern color)
-      Nothing ->  -- should be impossible
-        div [ class "card" ] [ text "???" ]
+      Err error ->
+        div [ class "card" ] [ text <| "Error: " ++ error ]
 
 
 -- SVG VIEW
