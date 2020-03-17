@@ -163,15 +163,6 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
         if Set.size selectedCards /= 3 then
           model
         else if checkTriple (Set.toList selectedCards) then
-          let
-            (newCards, newDeck) =
-              if List.length cards > 12 then
-                (removeSelectedCards selectedCards cards, deck)
-              else
-                (replaceSelectedCards selectedCards deck cards
-                , List.drop 3 deck
-                )
-          in
             unblockAllPlayers
               { model |
                 players =
@@ -180,8 +171,12 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
                     { player | score = player.score + 3 }
                     players
               , selectedPlayer = -1
-              , cards = newCards
-              , deck = newDeck
+              , deck = List.drop 3 deck
+              , cards =
+                  if List.length cards <= 12 && List.length deck > 0 then
+                    replaceSelectedCards selectedCards deck cards
+                  else
+                    removeSelectedCards selectedCards cards
               , selectedCards = Set.empty
               , validTriple = Nothing
               }
@@ -235,20 +230,10 @@ unblockAllPlayers model =
 
 checkBlockedPlayers : Model -> Model
 checkBlockedPlayers ({ players } as model) =
-  let
-    unblocked =
-      Array.toIndexedList players
-        |> List.filter (Tuple.second >> .blocked >> not)
-  in
-    case Debug.log "unblocked" unblocked of
-      [] ->
-        -- all blocked -> unblock all
-        unblockAllPlayers model
-      --(lastPlayerIndex, _) :: [] ->
-      --  -- only one player left -> select them
-      --  { model | selectedPlayer = lastPlayerIndex }
-      _ ->
-        model
+  if List.all .blocked (Array.toList players) then
+    unblockAllPlayers model
+  else
+    model
 
 findValidTriple : List Card -> Maybe (List Card)
 findValidTriple cards =
@@ -268,13 +253,14 @@ findValidTriple cards =
 -- VIEW
 
 view : Model -> List (Html Msg)
-view { players, selectedPlayer, cards, selectedCards, validTriple } =
+view { players, selectedPlayer, deck, cards, selectedCards, validTriple } =
   [ aside [ id "sidebar" ]
     [ h1 [] [ text "SET!" ]
     , lazy2 viewPlayers players selectedPlayer
+    , div [] [ text <| (List.length deck |> String.fromInt) ++ " cards left" ]
     , div
       [ class "button", onClick AddCards ]
-      [ text <| if validTriple == Nothing then "Possible?" else "Possible!" ]
+      [ text <| if validTriple == Nothing then "Impossible?" else "Possible!" ]
     ]
   , main_ [ id "main" ]
     [ lazy2 viewCards cards selectedCards ]
