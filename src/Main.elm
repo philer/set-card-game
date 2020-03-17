@@ -16,10 +16,6 @@ import Svg.Attributes as SvgA
 
 -- CONFIG
 
-red = "#f44"
-green = "#2b2"
-blue = "#66f"
-
 symbolWidth = 120
 symbolHeight = 50
 symbolStroke = 2
@@ -42,6 +38,7 @@ type alias Player =
   , blocked : Bool
   }
 
+
 type alias Card = Int
 
 type alias CardData =
@@ -51,20 +48,21 @@ type alias CardData =
   , count : Count
   }
 
-type Shape = Rectangle | Tilde | Ellipse
-type Pattern = Full | Half | Empty
+type alias Shape = String
+type alias Pattern = String
 type alias Color = String
 type alias Count = Int
 
+generateDeck : Array CardData
 generateDeck =
   let
     product : List a -> List (a -> b) -> List b
     product l1 = List.map (\b -> List.map b l1) >> List.concat
   in
     [CardData]
-      |> product [Rectangle, Tilde, Ellipse]
-      |> product [Full, Half, Empty]
-      |> product [red, green, blue]
+      |> product ["rectangle", "tilde", "ellipse"]
+      |> product ["full", "half", "empty"]
+      |> product ["red", "green", "blue"]
       |> product [1, 2, 3]
       |> Array.fromList
 
@@ -310,29 +308,6 @@ viewCard card selected =
 
 -- SVG VIEW
 
-svgDefs =
-  Svg.svg
-    [ id "svg-defs" ]
-    [ Svg.defs [] (List.map svgPatternDiagonalHatch [red, green, blue]) ]
-
-svgPatternDiagonalHatch : Color -> Svg.Svg Msg
-svgPatternDiagonalHatch color =
-  Svg.pattern
-    [ SvgA.id <| "diagonalHatch" ++ String.replace "#" "" color
-    , SvgA.width "5"
-    , SvgA.height "5"
-    , SvgA.patternTransform "rotate(45 0 0)"
-    , SvgA.patternUnits "userSpaceOnUse"
-    ]
-    [ Svg.line
-        [ SvgA.x1 "0"
-        , SvgA.y1 "0"
-        , SvgA.x2 "0"
-        , SvgA.y2 "5"
-        , SvgA.style <| "stroke:" ++ color ++ ";stroke-width:" ++ (String.fromFloat symbolStroke)
-        ] []
-    ]
-
 shape2svg : Shape -> Pattern -> Color -> Svg.Svg Msg
 shape2svg shape pattern color =
   Svg.svg
@@ -341,48 +316,71 @@ shape2svg shape pattern color =
     , SvgA.viewBox ([0, 0, symbolWidth, symbolHeight]
                     |> List.map String.fromInt |> String.join " ")
     ]
-    [ case shape of
-        Rectangle -> rectangle pattern color
-        Tilde -> tilde pattern color
-        Ellipse -> ellipse pattern color
+    [ useShape shape pattern color ]
+
+useShape : Shape -> Pattern -> Color -> Svg.Svg Msg
+useShape shape pattern color =
+  Svg.use
+    [ SvgA.xlinkHref <| "#shape-" ++ shape  -- Svg.Attributes.href doesn't exist
+    , SvgA.class <| "shape-" ++ pattern ++ " shape-" ++ color
+    ] []
+
+svgDefs : Svg.Svg Msg
+svgDefs =
+  Svg.svg
+    [ SvgA.class "svg-defs" ]
+    [ Svg.defs [] <|
+        [ rectangle, tilde, ellipse ]
+        ++ List.map svgPatternHatch [ "red", "green", "blue" ]
     ]
 
-rectangle : Pattern -> Color -> Svg.Svg Msg
-rectangle pattern color =
+rectangle : Svg.Svg Msg
+rectangle =
   Svg.rect
-    [ SvgA.x <| String.fromFloat (symbolStroke / 2)
+    [ SvgA.id "shape-rectangle"
+    , SvgA.class "shape"
+    , SvgA.x <| String.fromFloat (symbolStroke / 2)
     , SvgA.y <| String.fromFloat (symbolStroke / 2)
     , SvgA.width <| String.fromFloat (symbolWidth - 2 * symbolStroke)
     , SvgA.height <| String.fromFloat (symbolHeight - 2 * symbolStroke)
-    , SvgA.style <| svgStyles pattern color
     ] []
 
-tildePath = "m34.2 1c-25.3 0-36.4 23.7-32.4 34.6 3.9 10.7 16.5-6.3 31.1-6.8 16.4-0.6 31.1 20.3 52.9 20.3 25.3 0 36.4-23.7 32.4-34.6-3.9-10.7-16.5 6.3-31.1 6.8-16.4 0.6-31.1-20.3-52.9-20.3z"
-
-tilde : Pattern -> Color -> Svg.Svg Msg
-tilde pattern color =
+tilde : Svg.Svg Msg
+tilde =
   Svg.path
-    [ SvgA.x <| String.fromFloat (symbolStroke / 2)
+    [ SvgA.id "shape-tilde"
+    , SvgA.class "shape"
+    , SvgA.x <| String.fromFloat (symbolStroke / 2)
     , SvgA.y <| String.fromFloat (symbolStroke / 2)
-    , SvgA.d tildePath
-    , SvgA.style <| svgStyles pattern color
+    , SvgA.d "m34.2 1c-25.3 0-36.4 23.7-32.4 34.6 3.9 10.7 16.5-6.3 31.1-6.8 16.4-0.6 31.1 20.3 52.9 20.3 25.3 0 36.4-23.7 32.4-34.6-3.9-10.7-16.5 6.3-31.1 6.8-16.4 0.6-31.1-20.3-52.9-20.3z"
     ] []
 
-ellipse : Pattern -> Color -> Svg.Svg Msg
-ellipse pattern color =
+ellipse : Svg.Svg Msg
+ellipse =
   Svg.ellipse
-    [ SvgA.cx <| String.fromFloat (symbolWidth / 2)
+    [ SvgA.id "shape-ellipse"
+    , SvgA.class "shape"
+    , SvgA.cx <| String.fromFloat (symbolWidth / 2)
     , SvgA.cy <| String.fromFloat (symbolHeight / 2)
     , SvgA.rx <| String.fromFloat ((symbolWidth - symbolStroke) / 2)
     , SvgA.ry <| String.fromFloat ((symbolHeight - symbolStroke) / 2)
-    , SvgA.style <| svgStyles pattern color
     ] []
 
-svgStyles : Pattern -> Color -> String
-svgStyles pattern color =
-  String.join ";"
-    [ "stroke:" ++ color
-    , "stroke-width:" ++ String.fromFloat symbolStroke
-    , "fill:" ++ if pattern == Half then "url(#diagonalHatch"  ++ String.replace "#" "" color ++ ")" else color
-    , "fill-opacity:" ++ if pattern == Empty then "0" else "1"
+svgPatternHatch : Color -> Svg.Svg Msg
+svgPatternHatch color =
+  Svg.pattern
+    [ SvgA.id <| "pattern-diagonal-hatch-" ++ color
+    , SvgA.width "5"
+    , SvgA.height "5"
+    , SvgA.patternTransform "rotate(35 0 0)"
+    , SvgA.patternUnits "userSpaceOnUse"
+    ]
+    [ Svg.line
+        [ SvgA.x1 "0"
+        , SvgA.y1 "0"
+        , SvgA.x2 "0"
+        , SvgA.y2 "5"
+        , SvgA.style <| "stroke-width:2.5"
+        , SvgA.class <| "stroke-" ++ color
+        ] []
     ]

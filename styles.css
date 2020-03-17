@@ -1,3 +1,10 @@
+
+:root {
+    --red: #f44;
+    --green: #2b2;
+    --blue: #66f;
+}
+
 * {
     box-sizing: border-box;
     transition-property: background, color, border, box-shadow;
@@ -21,11 +28,24 @@ html, body {
 body {
     display: flex;
 }
-#svg-defs {
+.svg-defs {
     position: fixed;
     height: 0;
     width: 0;
 }
+.shape { stroke-width: 2; }
+.shape-red { stroke: var(--red); fill: var(--red); }
+.shape-green { stroke: var(--green); fill: var(--green); }
+.shape-blue { stroke: var(--blue); fill: var(--blue); }
+.shape-empty { fill: none; }
+/*.shape-half { fill-opacity: .2; }*/
+.shape-half.shape-red { fill: url(#pattern-diagonal-hatch-red); }
+.shape-half.shape-green { fill: url(#pattern-diagonal-hatch-green); }
+.shape-half.shape-blue { fill: url(#pattern-diagonal-hatch-blue); }
+#pattern-diagonal-hatch-red { stroke: var(--red); }
+#pattern-diagonal-hatch-green { stroke: var(--green); }
+#pattern-diagonal-hatch-blue { stroke: var(--blue); }
+
 body > main {
     display: flex;
     align-items: center;
