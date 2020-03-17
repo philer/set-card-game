@@ -264,6 +264,7 @@ view { players, selectedPlayer, deck, cards, selectedCards, validTriple } =
     ]
   , main_ [ id "main" ]
     [ lazy2 viewCards cards selectedCards ]
+  , svgDefs
   ]
 
 viewPlayers : Array Player -> Int -> Html Msg
@@ -308,6 +309,29 @@ viewCard card selected =
 
 
 -- SVG VIEW
+
+svgDefs =
+  Svg.svg
+    [ id "svg-defs" ]
+    [ Svg.defs [] (List.map svgPatternDiagonalHatch [red, green, blue]) ]
+
+svgPatternDiagonalHatch : Color -> Svg.Svg Msg
+svgPatternDiagonalHatch color =
+  Svg.pattern
+    [ SvgA.id <| "diagonalHatch" ++ String.replace "#" "" color
+    , SvgA.width "5"
+    , SvgA.height "5"
+    , SvgA.patternTransform "rotate(45 0 0)"
+    , SvgA.patternUnits "userSpaceOnUse"
+    ]
+    [ Svg.line
+        [ SvgA.x1 "0"
+        , SvgA.y1 "0"
+        , SvgA.x2 "0"
+        , SvgA.y2 "5"
+        , SvgA.style <| "stroke:" ++ color ++ ";stroke-width:" ++ (String.fromFloat symbolStroke)
+        ] []
+    ]
 
 shape2svg : Shape -> Pattern -> Color -> Svg.Svg Msg
 shape2svg shape pattern color =
@@ -358,8 +382,7 @@ svgStyles : Pattern -> Color -> String
 svgStyles pattern color =
   String.join ";"
     [ "stroke:" ++ color
-    , "stroke-width:" ++ String.fromInt symbolStroke
-    , "fill:" ++ color
-    , "fill-opacity:" ++ if pattern == Full then "1"
-                         else if pattern == Half then "0.2" else "0"
+    , "stroke-width:" ++ String.fromFloat symbolStroke
+    , "fill:" ++ if pattern == Half then "url(#diagonalHatch"  ++ String.replace "#" "" color ++ ")" else color
+    , "fill-opacity:" ++ if pattern == Empty then "0" else "1"
     ]

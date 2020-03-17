@@ -1,6 +1,7 @@
 * {
     box-sizing: border-box;
-    transition: background .2s, color .2s, box-shadow .2s;
+    transition-property: background, color, border, box-shadow;
+    transition-duration: .2s;
     user-select: none;
 }
 html, body {
@@ -9,12 +10,21 @@ html, body {
     position: absolute;
     width: 100%;
     height: 100%;
-    font-family: sans-serif;
-    color: #222;
+
+    text-align: center;
+
     background: #e8e8ee;
+    font-family: sans-serif;
+    color: #666;
+    font-weight: bold;
 }
 body {
     display: flex;
+}
+#svg-defs {
+    position: fixed;
+    height: 0;
+    width: 0;
 }
 body > main {
     display: flex;
@@ -48,7 +58,6 @@ h1 {
 
     font-weight: bold;
     font-size: 1.2em;
-    color: #666;
     cursor: pointer;
 }
 .player {
@@ -98,11 +107,13 @@ h1 {
     align-items: center;
 
     background: white;
+    border: 4px solid transparent;
     border-radius: 6px;
     box-shadow: 1px 1px 2px #0003,
                 0 0 3px #0003;
+    transition-property: transform, box-shadow, border;
+
     cursor: pointer;
-    transition: transform .2s;
 }
 /*.card.selected,*/
 .card:hover {
@@ -113,10 +124,10 @@ h1 {
     transform: scale(105%, 105%);
 }
 .card.selected {
-    border: 4px solid #aaf;
+    border-color: #aaf;
 }
 .card.highlighted {
-    border: 4px solid #faa;
+    border-color: #faa;
 }
 .card svg {
     margin: 5%;
