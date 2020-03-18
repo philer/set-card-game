@@ -52,12 +52,12 @@ generateDeck =
     product : List a -> List (a -> b) -> List b
     product l1 = List.map (\b -> List.map b l1) >> List.concat
   in
-    [CardData]
-      |> product ["rectangle", "tilde", "ellipse"]
-      |> product ["full", "half", "empty"]
-      |> product ["red", "green", "blue"]
-      |> product [1, 2, 3]
-      |> Array.fromList
+  [CardData]
+    |> product ["rectangle", "tilde", "ellipse"]
+    |> product ["full", "half", "empty"]
+    |> product ["red", "green", "blue"]
+    |> product [1, 2, 3]
+    |> Array.fromList
 
 cardData : Card -> Result String CardData
 cardData id =
@@ -80,9 +80,9 @@ init _ =
   update
     SetupGame
     { players = Array.fromList
-      [ Player "Philipp" 0 False
-      , Player "Susanne" 0 False
-      ]
+        [ Player "Philipp" 0 False
+        , Player "Susanne" 0 False
+        ]
     , selectedPlayer = -1
     , deck = []
     , cards = []
@@ -163,19 +163,19 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
               else
                 (deck, removeSelectedCards selectedCards cards)
           in
-            unblockAllPlayers
-              { model |
-                players =
-                  Array.set
-                    selectedPlayer
-                    { player | score = player.score + 3 }
-                    players
-              , selectedPlayer = -1
-              , deck = newDeck
-              , cards = newCards
-              , selectedCards = Set.empty
-              , validTriple = Nothing
-              }
+          unblockAllPlayers
+            { model |
+              players =
+                Array.set
+                  selectedPlayer
+                  { player | score = player.score + 3 }
+                  players
+            , selectedPlayer = -1
+            , deck = newDeck
+            , cards = newCards
+            , selectedCards = Set.empty
+            , validTriple = Nothing
+            }
         else
           checkBlockedPlayers
             { model |
@@ -193,10 +193,10 @@ checkTriple cards =
   let
     validSum = \n -> Set.member n (Set.fromList [0, 3, 6])
   in
-    List.all validSum
-      <| List.map
-          (\n -> List.sum <| List.map (\x -> modBy 3 (x // n)) cards)
-          [1, 3, 9, 27]
+  List.all validSum
+    <| List.map
+        (\n -> List.sum <| List.map (\x -> modBy 3 (x // n)) cards)
+        [1, 3, 9, 27]
 
 removeSelectedCards : Set Card -> List Card -> List Card
 removeSelectedCards selected =
@@ -217,7 +217,7 @@ replaceSelectedCards selected deck =
         Just newCard -> newCard
         Nothing -> card
   in
-    List.map replace
+  List.map replace
 
 unblockAllPlayers : Model -> Model
 unblockAllPlayers model =
@@ -250,20 +250,19 @@ findValidTriple cards =
 view : Model -> List (Html Msg)
 view { players, selectedPlayer, deck, cards, selectedCards, validTriple } =
   [ aside [ id "sidebar" ]
-    [ h1 [] [ text "SET!" ]
-    , lazy2 viewPlayers players selectedPlayer
-    , div [] [ text <| (List.length deck |> String.fromInt) ++ " cards left" ]
-    , lazy viewCheckButton validTriple
-    ]
+      [ h1 [] [ text "SET!" ]
+      , lazy2 viewPlayers players selectedPlayer
+      , div [] [ text <| (List.length deck |> String.fromInt) ++ " cards left" ]
+      , lazy viewCheckButton validTriple
+      ]
   , main_ [ id "main" ]
-    [ lazy2 viewCards cards selectedCards ]
+      [ lazy2 viewCards cards selectedCards ]
   , svgDefs
   ]
 
 viewPlayers : Array Player -> Int -> Html Msg
 viewPlayers players selectedPlayer =
-  div
-    [ id "players" ]
+  div [ id "players" ]
     (List.indexedMap
       (\i p -> viewPlayer i p <| i == selectedPlayer)
       (Array.toList players))
@@ -293,8 +292,7 @@ viewCheckButton validTriple =
 
 viewCards : List Card -> Set Card -> Html Msg
 viewCards cards selectedCards =
-  div
-    [ id "cards" ]
+  div [ id "cards" ]
     (List.map (\c -> lazy2 viewCard c (Set.member c selectedCards)) cards)
 
 viewCard : Card -> Bool -> Html Msg
