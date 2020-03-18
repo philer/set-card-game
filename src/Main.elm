@@ -6,7 +6,7 @@ import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
-import Html.Lazy exposing (lazy2, lazy3)
+import Html.Lazy exposing (lazy, lazy2, lazy3)
 import List.Extra exposing (cartesianProduct)
 import Random
 import Random.List exposing (shuffle)
@@ -186,7 +186,6 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
                     players
             , selectedPlayer = -1
             , selectedCards = Set.empty
-            , validTriple = Nothing
             }
 
 checkTriple : List Card -> Bool
@@ -254,9 +253,7 @@ view { players, selectedPlayer, deck, cards, selectedCards, validTriple } =
     [ h1 [] [ text "SET!" ]
     , lazy2 viewPlayers players selectedPlayer
     , div [] [ text <| (List.length deck |> String.fromInt) ++ " cards left" ]
-    , div
-      [ class "button", onClick AddCards ]
-      [ text <| if validTriple == Nothing then "Impossible?" else "Possible!" ]
+    , lazy viewCheckButton validTriple
     ]
   , main_ [ id "main" ]
     [ lazy2 viewCards cards selectedCards ]
@@ -275,15 +272,24 @@ viewPlayer : Int -> Player -> Bool -> Html Msg
 viewPlayer index { name, score, blocked } selected =
   div
     [ classList
-      [ ("player", True)
-      , ("selected", selected)
-      , ("blocked", blocked)
-      ]
+        [ ("button", True)
+        , ("player", True)
+        , ("selected", selected)
+        , ("disabled", blocked)
+        ]
     , onClick <| if blocked then NoOp else SelectPlayer index
     ]
     [ span [ class "player-name" ] [ text name ]
     , span [ class "player-score" ] [ text (String.fromInt score) ]
     ]
+
+viewCheckButton : Maybe (List Card) -> Html Msg
+viewCheckButton validTriple =
+  div
+    [ classList [ ("button", True), ("disabled", validTriple /= Nothing) ]
+    , onClick AddCards
+    ]
+    [ text <| if validTriple == Nothing then "Impossible?" else "Possible!" ]
 
 viewCards : List Card -> Set Card -> Html Msg
 viewCards cards selectedCards =
@@ -296,7 +302,12 @@ viewCard card selected =
     case cardData card of
       Ok {count, shape, pattern, color} ->
         div
-          [ classList [ ("card", True), ("selected", selected) ]
+          [ classList
+              [ ("button", True)
+              , ("card", True)
+              , ("card-" ++ color, True)
+              , ("selected", selected)
+              ]
           , onClick <| SelectCard card
           ]
           (List.repeat count <| lazy3 shape2svg shape pattern color)

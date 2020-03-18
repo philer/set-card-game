@@ -3,12 +3,17 @@
     --red: #f44;
     --green: #2b2;
     --blue: #66f;
+
+    --material-shadow: 1px 1px 2px #0003,
+                       0 0 3px #0003;
+    --material-selected-shadow: 2px 2px 4px #0003,
+                                0 0 6px #0003;
 }
 
 * {
     box-sizing: border-box;
-    transition-property: background, color, border, box-shadow;
-    transition-duration: .2s;
+    transition-property: color, background, opacity, border, box-shadow, transform;
+    transition-duration: .15s;
     user-select: none;
 }
 html, body {
@@ -17,16 +22,18 @@ html, body {
     position: absolute;
     width: 100%;
     height: 100%;
+    font-size: 1.5vmax;
 
     text-align: center;
 
-    background: #e8e8ee;
+    background: #e8e8ee url('wood.png') repeat;
     font-family: sans-serif;
     color: #666;
     font-weight: bold;
 }
 body {
     display: flex;
+    align-items: stretch;
 }
 .svg-defs {
     position: fixed;
@@ -46,108 +53,121 @@ body {
 #pattern-diagonal-hatch-green { stroke: var(--green); }
 #pattern-diagonal-hatch-blue { stroke: var(--blue); }
 
-body > main {
+#sidebar {
+    width: 15em;
+    flex-grow: 0;
+    padding: 0 1em;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+
+    border-right: 1px solid rgba(0, 0, 0, .15);
+}
+#main {
     display: flex;
     align-items: center;
     justify-content: center;
     flex-grow: 1;
+
+    border-left: 1px solid rgba(255, 255, 255, .4);
 }
-h1 {
-    text-align: center;
-}
-#sidebar {
-    height: 100%;
-    width: 200px;
-    flex-grow: 0;
-    padding: 1em 1em 0;
+
+.button {
+    padding: 1em;
+    line-height: 2em;
+    margin: 1em 0;
     background: white;
-    box-shadow: 0 0 2px #0003, 0 0 4px #0002;
-    align-self: flex-start;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
+    box-shadow: var(--material-shadow);
+    cursor: pointer;
 }
+.button.selected {
+    box-shadow: var(--material-selected-shadow);
+    transform: scale(104%, 104%);
+}
+.button:not(.disabled):hover,
+.button.selected {
+    background: #ddf;
+    color: #448;
+}
+.button.disabled {
+    color: #aaa;
+    opacity: .5;
+    cursor: default;
+    pointer-events: none;
+}
+
+
 #players {
     flex-grow: 1;
-}
-.button,
-.player {
-    margin: 1em 0;
-    padding: 1em;
-    border: 2px solid #ccc;
-
-    font-weight: bold;
-    font-size: 1.2em;
-    cursor: pointer;
 }
 .player {
     display: flex;
     justify-content: space-between;
-    align-items: center;
 }
-.button:hover,
-.player:not(.blocked):hover,
-.player.selected {
-    background: #eee;
-}
-.player.selected {
-    border-color: #888;
-}
-.player.blocked {
-    color: #ccc;
-    border-color: #eee;
-    cursor: default;
+.player-name {
+    margin-right: .5em;
 }
 
-.button {
-    text-align: center;
-}
 
 #cards {
     display: grid;
-    /*grid-template-columns: repeat(4, 20vmin);*/
     grid-auto-flow: column;
-
     grid-template-rows: repeat(3, 30vmin);
     grid-gap: 2vmin 2vmin;
     padding: 2vmin;
-    /*height: 60vmin;*/
-    /*width: 80vmin;*/
-    /*align-items: stretch;*/
-    /*justify-content: stretch;*/
-    /*align-content: stretch;*/
 }
 
 .card {
+    --card-inner-shadow: inset 0 0 4vmin;
     width: 20vmin;
+    margin: 0;
     padding: 10%;
+
+    position: relative;
 
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
 
-    background: white;
-    border: 4px solid transparent;
+    border: 1px solid transparent;
     border-radius: 6px;
-    box-shadow: 1px 1px 2px #0003,
-                0 0 3px #0003;
-    transition-property: transform, box-shadow, border;
+    box-shadow: var(--material-shadow),
+                var(--card-inner-shadow) #eee;
+}
+.card-red.button.selected,
+.card-red.button:hover {
+    background: #fee;
+}
+.card-green.button.selected,
+.card-green.button:hover {
+    background: #efe;
+}
+.card-blue.button.selected,
+.card-blue.button:hover {
+    background: #eef;
+}
+.card::before {
+    content: "";
+    position: absolute;
+    font-size: 3vmin;
+    top: .2em;
+    right: .2em;
+    width: 1.1em;
+    height: 1.1em;
+    line-height: 1.1em;
+    border-radius: .15em;
+    transition: background .2s;
+    color: white;
+}
+.card.selected::before {
+    content: "✔";
+}
+.card-red.selected::before { background: #f99; }
+.card-green.selected::before { background: #6d6; }
+.card-blue.selected::before { background: #aaf; }
 
-    cursor: pointer;
-}
-/*.card.selected,*/
-.card:hover {
-    box-shadow: 2px 2px 4px #0002,
-                0 0 6px #0002;
-    transform: scale(105%, 105%);
-}
-.card.selected {
-    border-color: #aaf;
-}
-.card.highlighted {
-    border-color: #faa;
-}
 .card svg {
     width: 100%;
     height: 33%;
