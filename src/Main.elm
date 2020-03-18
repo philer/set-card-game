@@ -2,6 +2,8 @@ module Main exposing (main)
 
 import Array exposing (Array)
 import Browser
+import Browser.Dom as Dom
+import Browser.Events as Events
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -13,6 +15,7 @@ import Random.List exposing (shuffle)
 import Set exposing (Set)
 import Svg
 import Svg.Attributes as SvgA
+import Task exposing (Task)
 
 -- MODEL
 
@@ -23,6 +26,7 @@ type alias Model =
   , cards : List Card
   , selectedCards : Set Card
   , validTriple : Maybe (List Card)
+  , cardsElementSize : (Float, Float)
   }
 
 type alias Player =
@@ -72,14 +76,20 @@ main =
     { init = init
     , update = update
     , view = \model -> { title = "SET!", body = view model }
-    , subscriptions = \_ -> Sub.none
+    , subscriptions = \_ -> Events.onResize (\_ _ -> WindowResize)
     }
+
+msg2cmd : Msg -> Cmd Msg
+msg2cmd msg =
+  Task.succeed msg |> Task.perform identity
+
+setCardsElementSize : Cmd Msg
+setCardsElementSize =
+  Task.attempt SetCardsElementSize (Dom.getElement "cards")
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
-  update
-    SetupGame
-    { players = Array.fromList
+  ( { players = Array.fromList
         [ Player "Philipp" 0 False
         , Player "Susanne" 0 False
         ]
@@ -88,12 +98,19 @@ init _ =
     , cards = []
     , selectedCards = Set.empty
     , validTriple = Nothing
+    , cardsElementSize = (0, 0)
     }
-
+  , Cmd.batch
+      [ msg2cmd NewGame
+      , setCardsElementSize
+      ]
+  )
 
 type Msg
   = NoOp
-  | SetupGame
+  | WindowResize
+  | SetCardsElementSize (Result Dom.Error Dom.Element)
+  | NewGame
   | SetDeck (List Card)
   | AddCards
   | SelectPlayer Int
@@ -104,8 +121,16 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg ({cards, deck, selectedCards} as model) =
   case msg of
     NoOp ->
-      (model, Cmd.none)
-    SetupGame ->
+      ( model, Cmd.none )
+    WindowResize ->
+      ( model, setCardsElementSize )
+    SetCardsElementSize (Err error) ->
+      ( model, Cmd.none )
+    SetCardsElementSize (Ok result) ->
+      ( { model | cardsElementSize = (result.element.width, result.element.height) }
+      , Cmd.none
+      )
+    NewGame ->
       ( model, Random.generate SetDeck (shuffle <| List.range 0 80) )
     SetDeck freshDeck ->
       ( { model |
@@ -248,20 +273,17 @@ findValidTriple cards =
 -- VIEW
 
 view : Model -> List (Html Msg)
-view { players, selectedPlayer, deck, cards, selectedCards, validTriple } =
-  [ aside [ id "sidebar" ]
-      [ h1 [] [ text "SET!" ]
-      , lazy2 viewPlayers players selectedPlayer
-      , div [] [ text <| (List.length deck |> String.fromInt) ++ " cards left" ]
-      , lazy viewCheckButton validTriple
-      ]
-  , main_ [ id "main" ]
-      [ lazy2 viewCards cards selectedCards ]
+view model =
+  [ h1 [] [ text "SET!" ]
+  , lazy viewPlayers model
+  , lazy viewCards model
+  , lazy viewInfo model
   , svgDefs
   ]
 
-viewPlayers : Array Player -> Int -> Html Msg
-viewPlayers players selectedPlayer =
+
+viewPlayers : Model -> Html Msg
+viewPlayers { players, selectedPlayer } =
   div [ id "players" ]
     (List.indexedMap
       (\i p -> viewPlayer i p <| i == selectedPlayer)
@@ -282,18 +304,17 @@ viewPlayer index { name, score, blocked } selected =
     , span [ class "player-score" ] [ text (String.fromInt score) ]
     ]
 
-viewCheckButton : Maybe (List Card) -> Html Msg
-viewCheckButton validTriple =
-  div
-    [ classList [ ("button", True), ("disabled", validTriple /= Nothing) ]
-    , onClick AddCards
-    ]
-    [ text <| if validTriple == Nothing then "Impossible?" else "Possible!" ]
 
-viewCards : List Card -> Set Card -> Html Msg
-viewCards cards selectedCards =
+viewCards : Model -> Html Msg
+viewCards { cards, selectedCards, cardsElementSize } =
+  let
+    (width, height) = cardsElementSize
+    size = String.fromFloat (Basics.min width height) ++ "px"
+  in
   div [ id "cards" ]
-    (List.map (\c -> lazy2 viewCard c (Set.member c selectedCards)) cards)
+    [ div [ style "width" size, style "height" size ]
+        (List.map (\c -> lazy2 viewCard c (Set.member c selectedCards)) cards)
+    ]
 
 viewCard : Card -> Bool -> Html Msg
 viewCard card selected =
@@ -311,6 +332,18 @@ viewCard card selected =
           (List.repeat count <| lazy3 shape2svg shape pattern color)
       Err error ->
         div [ class "card" ] [ text <| "Error: " ++ error ]
+
+
+viewInfo : Model -> Html Msg
+viewInfo { deck, validTriple } =
+  div [ id "info" ]
+    [ text <| (List.length deck |> String.fromInt) ++ " cards left"
+    , div
+        [ classList [ ("button", True), ("disabled", validTriple /= Nothing) ]
+        , onClick AddCards
+        ]
+        [ text <| if validTriple == Nothing then "Impossible?" else "Possible!" ]
+    ]
 
 
 -- SVG VIEW
