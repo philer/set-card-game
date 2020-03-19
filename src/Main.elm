@@ -308,11 +308,19 @@ viewPlayer index { name, score, blocked } selected =
 viewCards : Model -> Html Msg
 viewCards { cards, selectedCards, cardsElementSize } =
   let
-    (width, height) = cardsElementSize
-    size = String.fromFloat (Basics.min width height) ++ "px"
+    ratio = 1.15
+    (containerWidth, containerHeight) = cardsElementSize
+    (width, height) =
+      if containerWidth / containerHeight < ratio then
+        (containerWidth, containerWidth / ratio)
+      else
+        (containerHeight * ratio, containerHeight)
   in
   div [ id "cards" ]
-    [ div [ style "width" size, style "height" size ]
+    [ div
+        [ style "width" <| String.fromFloat width ++ "px"
+        , style "height" <| String.fromFloat height ++ "px"
+        ]
         (List.map (\c -> lazy2 viewCard c (Set.member c selectedCards)) cards)
     ]
 
