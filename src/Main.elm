@@ -20,21 +20,26 @@ import Task exposing (Task)
 -- MODEL
 
 type alias Model =
-  { players : Array Player
+  { gameState : GameState
+  , players : Array Player
   , selectedPlayer : Int
   , deck : List Card
   , cards : List Card
   , selectedCards : Set Card
   , validTriple : Maybe (List Card)
-  , cardsElementSize : (Float, Float)
+  , cardSize : (Float, Float)
   }
+
+type GameState
+  = Preparation
+  | Started
+  | Over
 
 type alias Player =
   { name : String
   , score : Int
   , blocked : Bool
   }
-
 
 type alias Card = Int
 
@@ -83,13 +88,14 @@ msg2cmd : Msg -> Cmd Msg
 msg2cmd msg =
   Task.succeed msg |> Task.perform identity
 
-setCardsElementSize : Cmd Msg
-setCardsElementSize =
-  Task.attempt SetCardsElementSize (Dom.getElement "cards")
+setCardSize : Cmd Msg
+setCardSize =
+  Task.attempt SetCardSize (Dom.getElement "cards")
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
-  ( { players = Array.fromList
+  ( { gameState = Preparation
+    , players = Array.fromList
         [ Player "Philipp" 0 False
         , Player "Susanne" 0 False
         ]
@@ -98,19 +104,19 @@ init _ =
     , cards = []
     , selectedCards = Set.empty
     , validTriple = Nothing
-    , cardsElementSize = (0, 0)
+    , cardSize = (200, 300)  -- arbitrary value
     }
   , Cmd.batch
-      [ msg2cmd NewGame
-      , setCardsElementSize
+      [ setCardSize
+      --, msg2cmd StartGame
       ]
   )
 
 type Msg
   = NoOp
   | WindowResize
-  | SetCardsElementSize (Result Dom.Error Dom.Element)
-  | NewGame
+  | SetCardSize (Result Dom.Error Dom.Element)
+  | StartGame
   | SetDeck (List Card)
   | AddCards
   | SelectPlayer Int
@@ -123,18 +129,31 @@ update msg ({cards, deck, selectedCards} as model) =
     NoOp ->
       ( model, Cmd.none )
     WindowResize ->
-      ( model, setCardsElementSize )
-    SetCardsElementSize (Err error) ->
+      ( model, setCardSize )
+    SetCardSize (Err error) ->
       ( model, Cmd.none )
-    SetCardsElementSize (Ok result) ->
-      ( { model | cardsElementSize = (result.element.width, result.element.height) }
+    SetCardSize (Ok { element }) ->
+      let
+        ratio = 1.1
+        (columns, rows) = (5, 3)
+        (w, h) =
+          if element.width / element.height < ratio then
+            (element.width, element.width / ratio)
+          else
+            (element.height * ratio, element.height)
+        gap = w * 0.01
+        width = (w - gap * (columns + 1)) / columns
+        height = (h - gap * (rows + 1)) / rows
+      in
+      ( { model | cardSize = (width, height) }
       , Cmd.none
       )
-    NewGame ->
+    StartGame ->
       ( model, Random.generate SetDeck (shuffle <| List.range 0 80) )
     SetDeck freshDeck ->
-      ( { model |
-          deck = List.drop 12 freshDeck
+      ( { model
+        | gameState = Started
+        , deck = List.drop 12 freshDeck
         , cards = List.take 12 freshDeck
         }
       , Cmd.none
@@ -143,8 +162,8 @@ update msg ({cards, deck, selectedCards} as model) =
       ( unblockAllPlayers
           <| case findValidTriple cards of
             Nothing ->
-              { model |
-                deck = List.drop 3 deck
+              { model
+              | deck = List.drop 3 deck
               , cards = cards ++ List.take 3 deck
               }
             validTriple ->
@@ -189,8 +208,8 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
                 (deck, removeSelectedCards selectedCards cards)
           in
           unblockAllPlayers
-            { model |
-              players =
+            { model
+            | players =
                 Array.set
                   selectedPlayer
                   { player | score = player.score + 3 }
@@ -203,12 +222,12 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
             }
         else
           checkBlockedPlayers
-            { model |
-                players =
-                  Array.set
-                    selectedPlayer
-                    { player | blocked = True }
-                    players
+            { model
+            | players =
+                Array.set
+                  selectedPlayer
+                  { player | blocked = True }
+                  players
             , selectedPlayer = -1
             , selectedCards = Set.empty
             }
@@ -306,26 +325,32 @@ viewPlayer index { name, score, blocked } selected =
 
 
 viewCards : Model -> Html Msg
-viewCards { cards, selectedCards, cardsElementSize } =
-  let
-    ratio = 1.15
-    (containerWidth, containerHeight) = cardsElementSize
-    (width, height) =
-      if containerWidth / containerHeight < ratio then
-        (containerWidth, containerWidth / ratio)
-      else
-        (containerHeight * ratio, containerHeight)
-  in
-  div [ id "cards" ]
-    [ div
-        [ style "width" <| String.fromFloat width ++ "px"
-        , style "height" <| String.fromFloat height ++ "px"
-        ]
-        (List.map (\c -> lazy2 viewCard c (Set.member c selectedCards)) cards)
-    ]
+viewCards { gameState, cards, selectedCards, cardSize } =
+  div [ id "cards"
+      , classList
+          [ ( "game-preparation", gameState == Preparation)
+          , ( "game-started", gameState == Started )
+          , ( "game-over", gameState == Over )
+          ]
+      ]
+    <| case gameState of
+      Preparation ->
+        [  viewCard 14 False cardSize
+            , viewCard 52 False cardSize
+            , viewCard 54 False cardSize
 
-viewCard : Card -> Bool -> Html Msg
-viewCard card selected =
+        , button
+            [ id "start-button", class "button", onClick StartGame ]
+            [ text "Start"]
+        ]
+      Started ->
+        List.map
+          (\c -> lazy3 viewCard c (Set.member c selectedCards) cardSize)
+          cards
+      Over -> [ text "Game Over" ]
+
+viewCard : Card -> Bool -> (Float, Float) -> Html Msg
+viewCard card selected (cardWidth, cardHeight) =
     case cardData card of
       Ok {count, shape, pattern, color} ->
         div
@@ -335,6 +360,8 @@ viewCard card selected =
               , ("card-" ++ color, True)
               , ("selected", selected)
               ]
+          , style "width" <| String.fromFloat cardWidth ++ "px"
+          , style "height" <| String.fromFloat cardHeight ++ "px"
           , onClick <| SelectCard card
           ]
           (List.repeat count <| lazy3 shape2svg shape pattern color)
