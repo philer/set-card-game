@@ -159,6 +159,9 @@ button.player {
 }
 .player-name {
     margin-right: .5rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
 }
 button.add-player-button {
     border-radius: 100%;
