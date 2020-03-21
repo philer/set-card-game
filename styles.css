@@ -1,28 +1,69 @@
-
 :root {
     --red: #f44;
     --green: #2b2;
     --blue: #66f;
-
+    --focus-color: #009;
     --material-shadow: 1px 1px 2px #0003,
                        0 0 3px #0003;
     --material-selected-shadow: 2px 2px 4px #0003,
                                 0 0 6px #0003;
+}
+.card-red {
+    --fg-color: var(--red);
+    --bg-color: #fee;
+    --highlight-color: #f99;
+}
+.card-green {
+    --fg-color: var(--green);
+    --bg-color: #efe;
+    --highlight-color: #8c8;
+}
+.card-blue {
+    --fg-color: var(--blue);
+    --bg-color: #eef;
+    --highlight-color: #bbf;
 }
 
 * {
     box-sizing: border-box;
     transition-property: color, background, opacity, border, box-shadow, transform;
     transition-duration: .15s;
+    transition-timing-function: ease-in-out;
+    /*transition-timing-function: cubic-bezier(0.53, 0.01, 0.36, 1.63);*/
     user-select: none;
 }
+button,
+button::-moz-focus-inner,
+input
+{
+    padding: 0;
+    border: none;
+    outline: none;
+    line-height: inherit;
+    font-size: inherit;
+    font-family: inherit;
+    font-weight: inherit;
+    color: inherit;
+    background: transparent;
+}
+button:focus, button:hover, button:active {
+    color: var(--focus-color);
+    text-shadow: 0 0 0 1px var(--focus-color);
+}
+button {
+    cursor: pointer;
+}
+input {
+    user-select: auto;
+}
+
 html, body {
     margin: 0;
     padding: 0;
     position: absolute;
     width: 100%;
     height: 100%;
-    font-size: 1.2vmax;
+    font-size: 1.5vmax;
 
     text-align: center;
 
@@ -33,14 +74,14 @@ html, body {
 }
 body {
     display: grid;
-    grid-template-columns: [left sidebar] 16em [sidebar-end main] 1fr [main-end right];
+    grid-template-columns: [left sidebar] 16rem [sidebar-end main] 1fr [main-end right];
     grid-template-rows:
         [top title] max-content
         [title-end players] 1fr
         [players-end info] max-content
         [info-end bottom];
-    grid-column-gap: 1em;
-    padding: 1em;
+    grid-column-gap: 1rem;
+    padding: 1rem;
     align-items: stretch;
 }
 h1 {
@@ -48,9 +89,13 @@ h1 {
 }
 #players {
     grid-area: players / sidebar / players-end / sidebar-end;
+    display: flex;
+    flex-direction: column;
 }
 #info {
     grid-area: info / sidebar / info-end / sidebar-end;
+    display: flex;
+    flex-direction: column;
 }
 #cards {
     grid-area: top / main / bottom / main-end;
@@ -63,9 +108,6 @@ h1 {
     #cards {
         flex-grow: 1;
     }
-    body .button {
-        line-height: 3em;
-    }
 }
 
 .svg-defs {
@@ -73,56 +115,66 @@ h1 {
     height: 0;
     width: 0;
 }
-.shape { stroke-width: 2; }
-.shape-red { stroke: var(--red); fill: var(--red); }
-.shape-green { stroke: var(--green); fill: var(--green); }
-.shape-blue { stroke: var(--blue); fill: var(--blue); }
-.shape-empty { fill: none; }
-/*.shape-half { fill-opacity: .2; }*/
-.shape-half.shape-red { fill: url(#pattern-diagonal-hatch-red); }
-.shape-half.shape-green { fill: url(#pattern-diagonal-hatch-green); }
-.shape-half.shape-blue { fill: url(#pattern-diagonal-hatch-blue); }
-#pattern-diagonal-hatch-red { stroke: var(--red); }
-#pattern-diagonal-hatch-green { stroke: var(--green); }
-#pattern-diagonal-hatch-blue { stroke: var(--blue); }
 
-button {
-    border: none;
-    outline: none;
-    font-weight: inherit;
-    color: inherit;
-    font-size: inherit;
-}
-.button {
-    padding: 1em;
-    line-height: 2em;
-    margin: 1em 0;
+.material,
+button.material {
+    display: flex;
+    margin: 1rem 0 0 0;
+    padding: 1.5rem;
+    line-height: 2rem;
+    font-size: 1.2rem;
+    justify-content: center;
+    align-items: center;
     background: white;
     box-shadow: var(--material-shadow);
-    cursor: pointer;
 }
-.button.selected {
+button.material:not(:disabled):active,
+button.material:not(:disabled):hover,
+.material.selected {
     box-shadow: var(--material-selected-shadow);
     /*transform: scale(104%, 104%);*/
 }
-.button:not(.disabled):hover,
-.button.selected {
+button.material:not(:disabled):hover,
+.material.selected {
     background: #ddf;
     color: #448;
 }
-.button.disabled {
+.material:disabled {
     color: #aaa;
     opacity: .5;
     cursor: default;
     pointer-events: none;
 }
+.material input {
+    min-width: 0;
+    flex: 1 1 auto;
+    box-shadow: 0 4px 0 -2px #ccc;
+}
+.player-input {
+    justify-content: stretch;
+}
 
-.player {
-    display: flex;
+button.player {
     justify-content: space-between;
 }
 .player-name {
-    margin-right: .5em;
+    margin-right: .5rem;
+}
+button.add-player-button {
+    border-radius: 100%;
+    font-size: 1.5rem;
+    padding: 0;
+    height: 4rem;
+    width: 4rem;
+    vertical-align: middle;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    align-self: center;
+}
+button.remove-player-button {
+    font-size: 2rem;
+    padding-left: .5rem;
 }
 
 #cards {
@@ -131,7 +183,7 @@ button {
     place-content: center;
     padding: 1%;
 }
-#cards.game-preparation {
+.game-preparation {
     grid-template-rows: auto auto;
     grid-template-columns: auto auto auto;
 }
@@ -142,12 +194,12 @@ button {
 .game-preparation .card:first-of-type {
     transform: rotate(-15deg) translate(10%, 10%);
 }
-.game-preparation .card:last-of-type {
+.game-preparation .card:nth-of-type(3) {
     transform: rotate(15deg) translate(-10%, 10%);
 }
 .game-preparation #start-button {
     grid-area: 2 / 1 / 3 / 4;
-    font-size: 2em;
+    font-size: 2rem;
 }
 #cards.game-started {
     grid-auto-flow: column;
@@ -156,8 +208,9 @@ button {
     place-content: center;
     grid-gap: 1%;
 }
-.card {
-    --card-inner-shadow: inset 0 0 4vmin;
+#cards .card {
+    --card-inner-glow: inset 0 0 4vmin;
+    --card-inner-border: inset 0 0 0 1vmin;
     margin: 0;
     padding: 10%;
 
@@ -171,41 +224,35 @@ button {
     border: 1px solid transparent;
     border-radius: 0.5vmin;
     box-shadow: var(--material-shadow),
-                var(--card-inner-shadow) #eee;
+                var(--card-inner-glow) #eee;
 }
-.card-red.button.selected,
-.card-red.button:hover {
-    background: #fee;
+#cards .card:hover,
+#cards .card.selected {
+    background: var(--bg-color);
+    box-shadow: var(--material-shadow),
+                var(--card-inner-glow) var(--highlight-color);
 }
-.card-green.button.selected,
-.card-green.button:hover {
-    background: #efe;
+#cards .card.selected {
+    box-shadow: var(--material-shadow),
+                var(--card-inner-border) var(--highlight-color);
 }
-.card-blue.button.selected,
-.card-blue.button:hover {
-    background: #eef;
-}
-.card::before {
-    content: "";
-    position: absolute;
-    font-size: 3vmin;
-    top: .2em;
-    right: .2em;
-    width: 1.1em;
-    height: 1.1em;
-    line-height: 1.1em;
-    border-radius: .15em;
-    transition: background .2s;
-    color: white;
-}
-.card.selected::before {
-    content: "✔";
-}
-.card-red.selected::before { background: #f99; }
-.card-green.selected::before { background: #6d6; }
-.card-blue.selected::before { background: #aaf; }
 
 .card svg {
     width: 100%;
     height: 31%;
 }
+
+.shape {
+    stroke-width: 2;
+    stroke: var(--fg-color);
+}
+.shape-full {
+    fill: var(--fg-color);
+}
+.shape-empty { fill: none; }
+#pattern-diagonal-hatch-red { stroke: var(--red); }
+#pattern-diagonal-hatch-green { stroke: var(--green); }
+#pattern-diagonal-hatch-blue { stroke: var(--blue); }
+.shape-half.shape-red { fill: url(#pattern-diagonal-hatch-red); }
+.shape-half.shape-green { fill: url(#pattern-diagonal-hatch-green); }
+.shape-half.shape-blue { fill: url(#pattern-diagonal-hatch-blue); }

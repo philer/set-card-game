@@ -1,15 +1,16 @@
 module Main exposing (main)
 
 import Array exposing (Array)
+import Array.Extra as Array
 import Browser
 import Browser.Dom as Dom
 import Browser.Events as Events
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput, onSubmit)
 import Html.Lazy exposing (lazy, lazy2, lazy3)
-import List.Extra exposing (cartesianProduct)
+import List.Extra as List
 import Random
 import Random.List exposing (shuffle)
 import Set exposing (Set)
@@ -40,6 +41,9 @@ type alias Player =
   , score : Int
   , blocked : Bool
   }
+
+newPlayer name =
+  Player name 0 False
 
 type alias Card = Int
 
@@ -88,17 +92,14 @@ msg2cmd : Msg -> Cmd Msg
 msg2cmd msg =
   Task.succeed msg |> Task.perform identity
 
-setCardSize : Cmd Msg
-setCardSize =
+updateCardSize : Cmd Msg
+updateCardSize =
   Task.attempt SetCardSize (Dom.getElement "cards")
 
 init : flags -> ( Model, Cmd Msg )
 init _ =
   ( { gameState = Preparation
-    , players = Array.fromList
-        [ Player "Philipp" 0 False
-        , Player "Susanne" 0 False
-        ]
+    , players = Array.fromList [ newPlayer "Player 1", newPlayer "Player 2" ]
     , selectedPlayer = -1
     , deck = []
     , cards = []
@@ -106,30 +107,29 @@ init _ =
     , validTriple = Nothing
     , cardSize = (200, 300)  -- arbitrary value
     }
-  , Cmd.batch
-      [ setCardSize
-      --, msg2cmd StartGame
-      ]
+  , updateCardSize
   )
 
 type Msg
   = NoOp
   | WindowResize
   | SetCardSize (Result Dom.Error Dom.Element)
+  | AddPlayer
+  | RemovePlayer Int
+  | SetPlayername Int String
   | StartGame
   | SetDeck (List Card)
   | AddCards
   | SelectPlayer Int
   | SelectCard Card
 
-
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg ({cards, deck, selectedCards} as model) =
+update msg ({players, cards, deck, selectedCards} as model) =
   case msg of
     NoOp ->
       ( model, Cmd.none )
     WindowResize ->
-      ( model, setCardSize )
+      ( model, updateCardSize )
     SetCardSize (Err error) ->
       ( model, Cmd.none )
     SetCardSize (Ok { element }) ->
@@ -148,13 +148,38 @@ update msg ({cards, deck, selectedCards} as model) =
       ( { model | cardSize = (width, height) }
       , Cmd.none
       )
+    AddPlayer ->
+      let
+        name = "Player " ++ (String.fromInt <| Array.length players + 1)
+      in
+      ( { model | players = Array.push (newPlayer name) players }
+      , updateCardSize
+      )
+    RemovePlayer index ->
+      ( { model | players = Array.removeAt index players }
+      , updateCardSize
+      )
+    SetPlayername index name ->
+      case Array.get index players of
+        Just player ->
+          ( { model
+            | players = Array.set index { player | name = name } players
+            }
+          , Cmd.none
+          )
+        Nothing ->
+          ( model, Cmd.none )
     StartGame ->
-      ( model, Random.generate SetDeck (shuffle <| List.range 0 80) )
-    SetDeck freshDeck ->
+      ( { model | gameState = Started }
+      , Cmd.batch
+          [ Random.generate SetDeck (shuffle <| List.range 0 80)
+          , updateCardSize
+          ]
+      )
+    SetDeck newDeck ->
       ( { model
-        | gameState = Started
-        , deck = List.drop 12 freshDeck
-        , cards = List.take 12 freshDeck
+        | deck = List.drop 12 newDeck
+        , cards = List.take 12 newDeck
         }
       , Cmd.none
       )
@@ -286,7 +311,7 @@ findValidTriple cards =
     )
     Nothing
     -- TODO optimization: lazy product without duplicates
-    (cartesianProduct [ cards, cards, cards ])
+    (List.cartesianProduct [ cards, cards, cards ])
 
 
 -- VIEW
@@ -294,29 +319,63 @@ findValidTriple cards =
 view : Model -> List (Html Msg)
 view model =
   [ h1 [] [ text "SET!" ]
-  , lazy viewPlayers model
-  , lazy viewCards model
-  , lazy viewInfo model
+  , viewPlayers model
+  , viewCards model
+  , viewInfo model
   , svgDefs
   ]
 
 
 viewPlayers : Model -> Html Msg
-viewPlayers { players, selectedPlayer } =
+viewPlayers { gameState, players, selectedPlayer } =
   div [ id "players" ]
-    (List.indexedMap
-      (\i p -> viewPlayer i p <| i == selectedPlayer)
-      (Array.toList players))
+    <| Array.toList
+      <| if gameState == Preparation then
+        let
+          canRemove = Array.length players > 1
+        in
+        Array.indexedMap (\i p -> viewPlayerInput i p canRemove) players
+        |> (Array.push <| button
+            [ class "material add-player-button"
+            , onClick AddPlayer
+            ]
+            [ text "+" ])
+      else
+        Array.indexedMap (\i p -> viewPlayer i p <| i == selectedPlayer) players
+
+viewPlayerInput : Int -> Player -> Bool -> Html Msg
+viewPlayerInput index player canRemove =
+  let
+    inputId = "player-name-input-" ++ String.fromInt index
+  in
+  div
+    [ class "material player player-input"
+    --, onClick (Focus inputId)
+    ]
+    <| [ input
+          [ id inputId
+          , class "player-name-input"
+          , placeholder "Player Name"
+          , value player.name
+          , onInput (SetPlayername index)
+          , onSubmit (StartGame)
+          ] []
+    ] ++ if canRemove then
+        [ button [ class "remove-player-button", onClick (RemovePlayer index) ]
+            [ text "✕" ]  -- ✖
+        ]
+      else
+        []
 
 viewPlayer : Int -> Player -> Bool -> Html Msg
 viewPlayer index { name, score, blocked } selected =
-  div
+  button
     [ classList
-        [ ("button", True)
+        [ ("material", True)
         , ("player", True)
         , ("selected", selected)
-        , ("disabled", blocked)
         ]
+    , disabled blocked
     , onClick <| if blocked then NoOp else SelectPlayer index
     ]
     [ span [ class "player-name" ] [ text name ]
@@ -326,36 +385,34 @@ viewPlayer index { name, score, blocked } selected =
 
 viewCards : Model -> Html Msg
 viewCards { gameState, cards, selectedCards, cardSize } =
-  div [ id "cards"
-      , classList
-          [ ( "game-preparation", gameState == Preparation)
-          , ( "game-started", gameState == Started )
-          , ( "game-over", gameState == Over )
-          ]
-      ]
-    <| case gameState of
-      Preparation ->
-        [  viewCard 14 False cardSize
-            , viewCard 52 False cardSize
-            , viewCard 54 False cardSize
-
+  div
+    [ id "cards"
+    , classList
+        [ ( "game-preparation", gameState == Preparation)
+        , ( "game-started", gameState == Started )
+        , ( "game-over", gameState == Over )
+        ]
+    ]
+    <| if gameState == Preparation then
+        [ viewCard 14 False cardSize
+        , viewCard 52 False cardSize
+        , viewCard 54 False cardSize
         , button
-            [ id "start-button", class "button", onClick StartGame ]
+            [ class "material", id "start-button", onClick StartGame ]
             [ text "Start"]
         ]
-      Started ->
+      else
         List.map
           (\c -> lazy3 viewCard c (Set.member c selectedCards) cardSize)
           cards
-      Over -> [ text "Game Over" ]
 
 viewCard : Card -> Bool -> (Float, Float) -> Html Msg
 viewCard card selected (cardWidth, cardHeight) =
     case cardData card of
       Ok {count, shape, pattern, color} ->
-        div
+        button
           [ classList
-              [ ("button", True)
+              [ ("material", True)
               , ("card", True)
               , ("card-" ++ color, True)
               , ("selected", selected)
@@ -370,15 +427,20 @@ viewCard card selected (cardWidth, cardHeight) =
 
 
 viewInfo : Model -> Html Msg
-viewInfo { deck, validTriple } =
-  div [ id "info" ]
-    [ text <| (List.length deck |> String.fromInt) ++ " cards left"
-    , div
-        [ classList [ ("button", True), ("disabled", validTriple /= Nothing) ]
-        , onClick AddCards
+viewInfo { gameState, deck, validTriple } =
+  case gameState of
+    Preparation ->
+      text ""
+    _ ->
+      div [ id "info" ]
+        [ text <| (List.length deck |> String.fromInt) ++ " cards left"
+        , button
+            [ class "material"
+            , disabled (validTriple /= Nothing)
+            , onClick AddCards
+            ]
+            [ text <| if validTriple == Nothing then "Impossible?" else "Possible!" ]
         ]
-        [ text <| if validTriple == Nothing then "Impossible?" else "Possible!" ]
-    ]
 
 
 -- SVG VIEW
