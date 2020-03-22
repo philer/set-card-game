@@ -2,7 +2,6 @@
     --red: #f44;
     --green: #2b2;
     --blue: #66f;
-    --focus-color: #009;
     --material-shadow: 1px 1px 2px #0003,
                        0 0 3px #0003;
     --material-selected-shadow: 2px 2px 4px #0003,
@@ -45,10 +44,6 @@ input
     font-weight: inherit;
     color: inherit;
     background: transparent;
-}
-button:focus, button:hover, button:active {
-    color: var(--focus-color);
-    text-shadow: 0 0 0 1px var(--focus-color);
 }
 button {
     cursor: pointer;

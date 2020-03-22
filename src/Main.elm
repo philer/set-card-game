@@ -225,10 +225,8 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
         else if checkTriple (Set.toList selectedCards) then
           let
             (newDeck, newCards) =
-              if List.length cards <= 12 && List.length deck > 0 then
-                ( List.drop 3 deck
-                , replaceSelectedCards selectedCards deck cards
-                )
+              if List.length cards <= 12 then
+                replaceSelectedCards deck selectedCards cards
               else
                 (deck, removeSelectedCards selectedCards cards)
           in
@@ -260,33 +258,34 @@ attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
 checkTriple : List Card -> Bool
 checkTriple cards =
   let
-    validSum = \n -> Set.member n (Set.fromList [0, 3, 6])
+    base3mask mask n = n // mask |> modBy 3
+    validSum sum = List.member sum [0, 3, 6]
+    mapSum fn = List.foldl (fn >> (+)) 0
   in
-  List.all validSum
-    <| List.map
-        (\n -> List.sum <| List.map (\x -> modBy 3 (x // n)) cards)
-        [1, 3, 9, 27]
+  List.all
+    (\mask -> validSum <| mapSum (base3mask mask) cards)
+    [0, 3, 9, 27]
 
 removeSelectedCards : Set Card -> List Card -> List Card
 removeSelectedCards selected =
   List.filter (\card -> not <| Set.member card selected)
 
-replaceSelectedCards : Set Card -> List Card -> List Card -> List Card
-replaceSelectedCards selected deck =
+replaceSelectedCards : List Card -> Set Card -> List Card -> (List Card, List Card)
+replaceSelectedCards deck selected =
   let
-    zip : List a -> List a -> List (a, a)
-    zip = List.map2 Tuple.pair
-
-    replacements : Dict Card Card
-    replacements = Dict.fromList <| zip (Set.toList selected) deck
-
-    replace : Card -> Card
-    replace card =
-      case Dict.get card replacements of
-        Just newCard -> newCard
-        Nothing -> card
+    replace : Card -> (List Card, List Card) -> (List Card, List Card)
+    replace card ( newDeck, newCards ) =
+      if Set.member card selected then
+        case newDeck of
+          newCard :: remainingDeck ->
+            ( remainingDeck, newCard :: newCards )
+          [] ->
+            ( newDeck, newCards )
+      else
+        ( newDeck, card :: newCards )
   in
-  List.map replace
+  List.foldr replace ( deck, [] )
+
 
 unblockAllPlayers : Model -> Model
 unblockAllPlayers model =
@@ -294,25 +293,20 @@ unblockAllPlayers model =
 
 checkBlockedPlayers : Model -> Model
 checkBlockedPlayers ({ players } as model) =
-  if List.all .blocked (Array.toList players) then
+  if Array.foldl (.blocked >> (&&)) True players then
     unblockAllPlayers model
   else
     model
 
 findValidTriple : List Card -> Maybe (List Card)
 findValidTriple cards =
-  List.foldl
-    (\triple result ->
-      if result == Nothing && Set.size (Set.fromList triple) == 3
-                           && checkTriple triple then
-        Just triple
-      else
-        result
-    )
-    Nothing
+  let
+    countUnique = Set.size << Set.fromList
+  in
+  List.find
+    (\triple -> countUnique triple == 3 && checkTriple triple)
     -- TODO optimization: lazy product without duplicates
     (List.cartesianProduct [ cards, cards, cards ])
-
 
 -- VIEW
 
@@ -329,19 +323,17 @@ view model =
 viewPlayers : Model -> Html Msg
 viewPlayers { gameState, players, selectedPlayer } =
   div [ id "players" ]
-    <| Array.toList
-      <| if gameState == Preparation then
-        let
-          canRemove = Array.length players > 1
-        in
-        Array.indexedMap (\i p -> viewPlayerInput i p canRemove) players
-        |> (Array.push <| button
-            [ class "material add-player-button"
-            , onClick AddPlayer
-            ]
-            [ text "+" ])
-      else
-        Array.indexedMap (\i p -> viewPlayer i p <| i == selectedPlayer) players
+    <| if gameState == Preparation then
+      let
+        canRemove = Array.length players > 1
+      in
+      (Array.indexedMapToList (\i p -> viewPlayerInput i p canRemove) players)
+      ++ [ button
+            [ class "material add-player-button" , onClick AddPlayer ]
+            [ text "+" ]
+         ]
+    else
+      Array.indexedMapToList (\i p -> viewPlayer i p <| i == selectedPlayer) players
 
 viewPlayerInput : Int -> Player -> Bool -> Html Msg
 viewPlayerInput index player canRemove =
