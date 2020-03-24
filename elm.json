@@ -13,7 +13,8 @@
             "elm/svg": "1.0.1",
             "elm-community/array-extra": "2.1.0",
             "elm-community/list-extra": "8.2.3",
-            "elm-community/random-extra": "3.0.0"
+            "elm-community/random-extra": "3.0.0",
+            "lattyware/elm-fontawesome": "4.0.0"
         },
         "indirect": {
             "elm/json": "1.1.3",

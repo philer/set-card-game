@@ -1,7 +1,6 @@
 module Main exposing (main)
 
 import Array exposing (Array)
-import Array.Extra as Array
 import Browser
 import Browser.Dom as Dom
 import Browser.Events as Events
@@ -10,13 +9,17 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Html.Lazy exposing (lazy, lazy2, lazy3)
-import List.Extra as List
 import Random
 import Random.List exposing (shuffle)
 import Set exposing (Set)
 import Svg
 import Svg.Attributes as SvgA
 import Task exposing (Task)
+
+import Array.Extra as Array
+import FontAwesome.Icon as FA exposing (Icon)
+import FontAwesome.Regular as FA
+import List.Extra as List
 
 -- MODEL
 
@@ -117,7 +120,7 @@ type Msg
   | SetPlayername Int String
   | StartGame
   | SetDeck (List Card)
-  | AddCards
+  | CheckImpossible
   | SelectPlayer Int
   | SelectCard Card
 
@@ -181,7 +184,7 @@ update msg ({players, cards, deck, selectedCards} as model) =
         }
       , Cmd.none
       )
-    AddCards ->
+    CheckImpossible ->
       ( unblockAllPlayers
           <| case findValidTriple cards of
             Nothing ->
@@ -364,7 +367,10 @@ viewPlayer index { name, score, blocked } =
 
 
 viewCards : Model -> Html Msg
-viewCards { gameState, cards, selectedCards, cardSize } =
+viewCards { gameState, cards, selectedCards, cardSize, validTriple } =
+  let
+    viewCard_ = viewCard cardSize
+  in
   div
     [ id "cards"
     , classList
@@ -374,20 +380,25 @@ viewCards { gameState, cards, selectedCards, cardSize } =
         ]
     ]
     <| if gameState == Preparation then
-        [ viewCard 14 False cardSize
-        , viewCard 52 False cardSize
-        , viewCard 54 False cardSize
-        , button
-            [ class "material", id "start-button", onClick StartGame ]
+        [ viewCard_ 14 False False
+        , viewCard_ 52 False False
+        , viewCard_ 54 False False
+        , button [ class "material start-button", onClick StartGame ]
             [ text "Start"]
         ]
       else
+        let
+          hintCard =
+            case validTriple of
+              Just (_::second::_) -> Just second
+              _ -> Nothing
+        in
         List.map
-          (\c -> lazy3 viewCard c (Set.member c selectedCards) cardSize)
+          (\c -> lazy3 viewCard_ c (Set.member c selectedCards) (hintCard == Just c))
           cards
 
-viewCard : Card -> Bool -> (Float, Float) -> Html Msg
-viewCard card selected (cardWidth, cardHeight) =
+viewCard : (Float, Float) -> Card -> Bool -> Bool -> Html Msg
+viewCard (cardWidth, cardHeight) card selected highlighted =
     case cardData card of
       Ok {count, shape, pattern, color} ->
         button
@@ -397,11 +408,15 @@ viewCard card selected (cardWidth, cardHeight) =
               , ("card-" ++ color, True)
               , ("selected", selected)
               ]
+          , title <| String.fromInt card
           , style "width" <| String.fromFloat cardWidth ++ "px"
           , style "height" <| String.fromFloat cardHeight ++ "px"
           , onClick <| SelectCard card
           ]
-          (List.repeat count <| lazy3 shape2svg shape pattern color)
+          <|
+            (List.repeat count <| lazy3 shape2svg shape pattern color)
+            ++
+            (if highlighted then [FA.viewIcon FA.smileWink] else [])
       Err error ->
         div [ class "card" ] [ text <| "Error: " ++ error ]
 
@@ -417,7 +432,7 @@ viewInfo { gameState, deck, validTriple } =
         , button
             [ class "material"
             , disabled (validTriple /= Nothing)
-            , onClick AddCards
+            , onClick CheckImpossible
             ]
             [ text <| if validTriple == Nothing then "Impossible?" else "Possible!" ]
         ]
