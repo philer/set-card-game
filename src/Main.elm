@@ -256,7 +256,7 @@ checkTriple cards =
   in
   List.all
     (\mask -> validSum <| mapSum (base3mask mask) cards)
-    [0, 3, 9, 27]
+    [1, 3, 9, 27]
 
 removeSelectedCards : Set Card -> List Card -> List Card
 removeSelectedCards selected =
