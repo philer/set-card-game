@@ -23,7 +23,6 @@ import Task exposing (Task)
 type alias Model =
   { gameState : GameState
   , players : Array Player
-  , selectedPlayer : Int
   , deck : List Card
   , cards : List Card
   , selectedCards : Set Card
@@ -100,7 +99,6 @@ init : flags -> ( Model, Cmd Msg )
 init _ =
   ( { gameState = Preparation
     , players = Array.fromList [ newPlayer "Player 1", newPlayer "Player 2" ]
-    , selectedPlayer = -1
     , deck = []
     , cards = []
     , selectedCards = Set.empty
@@ -195,65 +193,59 @@ update msg ({players, cards, deck, selectedCards} as model) =
               { model | validTriple = validTriple }
       , Cmd.none
       )
-    SelectPlayer index ->
-      ( attemptGuess
-          { model | selectedPlayer = index }
+    SelectCard card ->
+      ( { model
+        | selectedCards =
+            if Set.member card selectedCards then
+              Set.remove card selectedCards
+            else if Set.size selectedCards < 3 then
+              Set.insert card selectedCards
+            else
+              selectedCards
+        }
       , Cmd.none
       )
-    SelectCard card ->
-      ( attemptGuess
-          { model |
-            selectedCards =
-              if Set.member card selectedCards then
-                Set.remove card selectedCards
-              else if Set.size selectedCards < 3 then
-                Set.insert card selectedCards
-              else
-                selectedCards
-          }
+    SelectPlayer index ->
+      ( if Set.size selectedCards == 3 then makeGuess index model else model
       , Cmd.none
       )
 
-attemptGuess : Model -> Model
-attemptGuess ({players, selectedPlayer, cards, deck, selectedCards} as model) =
-    case Array.get selectedPlayer players of
-      Nothing ->
-        model
-      Just player ->
-        if Set.size selectedCards /= 3 then
-          model
-        else if checkTriple (Set.toList selectedCards) then
-          let
-            (newDeck, newCards) =
-              if List.length cards <= 12 then
-                replaceSelectedCards deck selectedCards cards
-              else
-                (deck, removeSelectedCards selectedCards cards)
-          in
-          unblockAllPlayers
-            { model
-            | players =
-                Array.set
-                  selectedPlayer
-                  { player | score = player.score + 3 }
-                  players
-            , selectedPlayer = -1
-            , deck = newDeck
-            , cards = newCards
-            , selectedCards = Set.empty
-            , validTriple = Nothing
-            }
-        else
-          checkBlockedPlayers
-            { model
-            | players =
-                Array.set
-                  selectedPlayer
-                  { player | blocked = True }
-                  players
-            , selectedPlayer = -1
-            , selectedCards = Set.empty
-            }
+makeGuess : Int -> Model -> Model
+makeGuess selectedPlayer ({players, cards, deck, selectedCards} as model) =
+  case Array.get selectedPlayer players of
+    Nothing ->  -- error, should not be possible
+      model
+    Just player ->
+      if checkTriple (Set.toList selectedCards) then
+        let
+          (newDeck, newCards) =
+            if List.length cards <= 12 then
+              replaceSelectedCards deck selectedCards cards
+            else
+              (deck, removeSelectedCards selectedCards cards)
+        in
+        unblockAllPlayers
+          { model
+          | players =
+              Array.set
+                selectedPlayer
+                { player | score = player.score + 3 }
+                players
+          , deck = newDeck
+          , cards = newCards
+          , selectedCards = Set.empty
+          , validTriple = Nothing
+          }
+      else
+        checkBlockedPlayers
+          { model
+          | players =
+              Array.set
+                selectedPlayer
+                { player | blocked = True }
+                players
+          , selectedCards = Set.empty
+          }
 
 checkTriple : List Card -> Bool
 checkTriple cards =
@@ -321,7 +313,7 @@ view model =
 
 
 viewPlayers : Model -> Html Msg
-viewPlayers { gameState, players, selectedPlayer } =
+viewPlayers { gameState, players } =
   div [ id "players" ]
     <| if gameState == Preparation then
       let
@@ -333,7 +325,7 @@ viewPlayers { gameState, players, selectedPlayer } =
             [ text "+" ]
          ]
     else
-      Array.indexedMapToList (\i p -> viewPlayer i p <| i == selectedPlayer) players
+      Array.indexedMapToList viewPlayer players
 
 viewPlayerInput : Int -> Player -> Bool -> Html Msg
 viewPlayerInput index player canRemove =
@@ -359,14 +351,10 @@ viewPlayerInput index player canRemove =
       else
         []
 
-viewPlayer : Int -> Player -> Bool -> Html Msg
-viewPlayer index { name, score, blocked } selected =
+viewPlayer : Int -> Player -> Html Msg
+viewPlayer index { name, score, blocked } =
   button
-    [ classList
-        [ ("material", True)
-        , ("player", True)
-        , ("selected", selected)
-        ]
+    [ class "material player"
     , disabled blocked
     , onClick <| if blocked then NoOp else SelectPlayer index
     ]
