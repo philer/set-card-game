@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Array exposing (Array)
 import Browser
@@ -9,6 +9,8 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Html.Lazy exposing (lazy, lazy2, lazy3)
+import Json.Decode as JD exposing (decodeString, array, string)
+import Json.Encode as JE exposing (encode, array, string)
 import Random
 import Random.List exposing (shuffle)
 import Set exposing (Set)
@@ -81,7 +83,9 @@ cardData id =
 
 -- MAIN
 
-main : Program () Model Msg
+port storePlayerNames : String -> Cmd msg
+
+main : Program (Maybe String) Model Msg
 main =
   Browser.document
     { init = init
@@ -98,10 +102,16 @@ updateCardSize : Cmd Msg
 updateCardSize =
   Task.attempt SetCardSize (Dom.getElement "cards")
 
-init : flags -> ( Model, Cmd Msg )
-init _ =
+init : (Maybe String) -> ( Model, Cmd Msg )
+init flags =
+  let
+    playerNames =
+      flags
+        |> Maybe.andThen (JD.decodeString (JD.array JD.string) >> Result.toMaybe)
+        |> Maybe.withDefault (Array.fromList [ "Player 1", "Player 2" ])
+  in
   ( { gameState = Preparation
-    , players = Array.fromList [ newPlayer "Player 1", newPlayer "Player 2" ]
+    , players = Array.map newPlayer playerNames
     , deck = []
     , cards = []
     , selectedCards = Set.empty
@@ -173,7 +183,9 @@ update msg ({players, cards, deck, selectedCards} as model) =
     StartGame ->
       ( { model | gameState = Started }
       , Cmd.batch
-          [ Random.generate SetDeck (shuffle <| List.range 0 80)
+          [ storePlayerNames
+              (JE.encode 0 <| JE.array (.name >> JE.string) players)
+          , Random.generate SetDeck (shuffle <| List.range 0 80)
           , updateCardSize
           ]
       )
@@ -400,6 +412,8 @@ viewCards { gameState, cards, selectedCards, cardSize, validTriple } =
 viewCard : (Float, Float) -> Card -> Bool -> Bool -> Html Msg
 viewCard (cardWidth, cardHeight) card selected highlighted =
     case cardData card of
+      Err error ->
+        button [ class "material card" ] [ text <| "Error: " ++ error ]
       Ok {count, shape, pattern, color} ->
         button
           [ classList
@@ -417,8 +431,6 @@ viewCard (cardWidth, cardHeight) card selected highlighted =
             (List.repeat count <| lazy3 shape2svg shape pattern color)
             ++
             (if highlighted then [FA.viewIcon FA.smileWink] else [])
-      Err error ->
-        div [ class "card" ] [ text <| "Error: " ++ error ]
 
 
 viewInfo : Model -> Html Msg

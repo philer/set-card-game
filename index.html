@@ -8,6 +8,14 @@
     <script src="main.js"></script>
   </head>
   <body>
-    <script>Elm.Main.init()</script>
+    <script>
+      "use strict";
+      const playerNamesKey = "set-card-game.player-names";
+      const app = Elm.Main.init({
+        flags: localStorage.getItem(playerNamesKey)
+      });
+      app.ports.storePlayerNames.subscribe(dataString =>
+        localStorage.setItem(playerNamesKey, dataString));
+    </script>
   </body>
 </html>
