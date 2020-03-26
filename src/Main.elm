@@ -200,10 +200,13 @@ update msg ({players, cards, deck, selectedCards} as model) =
       ( unblockAllPlayers
           <| case findValidTriple cards of
             Nothing ->
-              { model
-              | deck = List.drop 3 deck
-              , cards = cards ++ List.take 3 deck
-              }
+              if List.length deck == 0 then
+                { model | gameState = Over }
+              else
+                { model
+                | deck = List.drop 3 deck
+                , cards = cards ++ List.take 3 deck
+                }
             validTriple ->
               { model | validTriple = validTriple }
       , Cmd.none
@@ -315,6 +318,7 @@ findValidTriple cards =
     -- TODO optimization: lazy product without duplicates
     (List.cartesianProduct [ cards, cards, cards ])
 
+
 -- VIEW
 
 view : Model -> List (Html Msg)
@@ -391,14 +395,15 @@ viewCards { gameState, cards, selectedCards, cardSize, validTriple } =
         , ( "game-over", gameState == Over )
         ]
     ]
-    <| if gameState == Preparation then
+    <| case gameState of
+      Preparation ->
         [ viewCard_ 14 False False
         , viewCard_ 52 False False
         , viewCard_ 54 False False
         , button [ class "material start-button", onClick StartGame ]
             [ text "Start"]
         ]
-      else
+      Started ->
         let
           hintCard =
             case validTriple of
@@ -408,6 +413,9 @@ viewCards { gameState, cards, selectedCards, cardSize, validTriple } =
         List.map
           (\c -> lazy3 viewCard_ c (Set.member c selectedCards) (hintCard == Just c))
           cards
+      Over ->
+        (List.map (\c -> viewCard_ c False False) cards)
+        ++ [ div [ class "game-over-text" ] [ text "Game Over" ] ]
 
 viewCard : (Float, Float) -> Card -> Bool -> Bool -> Html Msg
 viewCard (cardWidth, cardHeight) card selected highlighted =
@@ -443,10 +451,17 @@ viewInfo { gameState, deck, validTriple } =
         [ text <| (List.length deck |> String.fromInt) ++ " cards left"
         , button
             [ class "material"
-            , disabled (validTriple /= Nothing)
+            , disabled (validTriple /= Nothing || gameState == Over)
             , onClick CheckImpossible
             ]
-            [ text <| if validTriple == Nothing then "Impossible?" else "Possible!" ]
+            [ text <|
+                if gameState == Over then
+                 "Impossible."
+                else if validTriple == Nothing then
+                  "Impossible?"
+                else
+                  "Possible!"
+            ]
         ]
 
 
