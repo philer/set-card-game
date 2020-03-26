@@ -23,6 +23,23 @@
     --highlight-color: #bbf;
 }
 
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 700;
+  src: local('Montserrat Regular'), local('Montserrat-Regular'),
+       url('fonts/montserrat-v14-latin-700.woff2') format('woff2'),
+       url('fonts/montserrat-v14-latin-700.woff') format('woff');
+}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 800;
+  src: local('Montserrat ExtraBold'), local('Montserrat-ExtraBold'),
+       url('fonts/montserrat-v14-latin-800.woff2') format('woff2'),
+       url('fonts/montserrat-v14-latin-800.woff') format('woff');
+}
+
 * {
     box-sizing: border-box;
     transition-property: color, background, opacity, border, box-shadow;
@@ -62,10 +79,10 @@ html, body {
 
     text-align: center;
 
-    background: #e8e8ee url('wood.png') repeat;
-    font-family: sans-serif;
     color: #666;
-    font-weight: bold;
+    background: #e8e8ee url('wood.png') repeat;
+    font-family: 'Montserrat', 'Nevada', sans-serif;
+    font-weight: 700;
 }
 body {
     display: grid;
@@ -80,6 +97,8 @@ body {
     align-items: stretch;
 }
 h1 {
+    font-size: 3rem;
+    margin: 0 1rem;
     grid-area: title / sidebar / title-end / sidebar-end;
 }
 #players {
@@ -161,9 +180,14 @@ button.player {
     text-overflow: ellipsis;
     overflow: hidden;
 }
+button.add-player-button,
+button.remove-player-button {
+    font-family: 'Arial', sans-serif;
+    font-weight: normal;
+}
 button.add-player-button {
     border-radius: 100%;
-    font-size: 1.5rem;
+    font-size: 2.5rem;
     padding: 0;
     height: 4rem;
     width: 4rem;
