@@ -430,7 +430,6 @@ viewCard (cardWidth, cardHeight) card selected highlighted =
               , ("card-" ++ color, True)
               , ("selected", selected)
               ]
-          , title <| String.fromInt card
           , style "width" <| String.fromFloat cardWidth ++ "px"
           , style "height" <| String.fromFloat cardHeight ++ "px"
           , onClick <| SelectCard card
