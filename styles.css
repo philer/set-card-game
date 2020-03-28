@@ -2,10 +2,13 @@
     --red: #f44;
     --green: #2b2;
     --blue: #66f;
-    --material-shadow: 1px 1px 2px #0003,
-                       0 0 3px #0003;
-    --material-selected-shadow: 2px 2px 4px #0003,
-                                0 0 6px #0003;
+    --text-color: #666;
+    --shadow-lvl1: 1px 1px 2px #0003,
+                   0 0 3px #0003;
+    --shadow-lvl2: 2px 2px 4px #0003,
+                   0 0 6px #0003;
+    --shadow-lvl3: 3px 3px 6px #0003,
+                   0 0 9px #0003;
 }
 .card-red {
     --fg-color: var(--red);
@@ -43,9 +46,7 @@
 * {
     box-sizing: border-box;
     transition-property: color, background, opacity, border, box-shadow;
-    transition-duration: .15s;
-    transition-timing-function: ease-in-out;
-    /*transition-timing-function: cubic-bezier(0.53, 0.01, 0.36, 1.63);*/
+    transition-duration: .25s;
     user-select: none;
 }
 button,
@@ -82,7 +83,7 @@ html, body {
      * https://www.toptal.com/designers/subtlepatterns/retina-wood/
      */
     background: #e8e8ee url('wood.png') repeat;
-    color: #666;
+    color: var(--text-color);
     font-family: 'Montserrat', 'Nevada', sans-serif;
     font-weight: 700;
 }
@@ -97,6 +98,12 @@ body {
     grid-column-gap: 1rem;
     padding: 1rem;
     align-items: stretch;
+}
+h1,
+.game-over-text {
+    font-weight: 800;
+    -webkit-text-stroke: .033em white;
+    text-shadow: .025em .025em .1em rgba(0, 0, 0, .5);
 }
 h1 {
     font-size: 3rem;
@@ -142,19 +149,26 @@ button.material {
     justify-content: center;
     align-items: center;
     background: white;
-    box-shadow: var(--material-shadow);
+    box-shadow: var(--shadow-lvl1);
+    border-radius: 0.5vmin;
+    opacity: 1;
 }
-
-@media (hover) {
+@media (pointer: fine) {
+    .material,
+    button.material {
+        line-height: 1.2rem;
+    }
+}
+@media (any-hover) {
     button.material:not(:disabled):hover {
-        box-shadow: var(--material-selected-shadow);
+        box-shadow: var(--shadow-lvl2);
         background: #ddf;
         color: #448;
     }
 }
 button.material:not(:disabled):active,
 .material.selected {
-    box-shadow: var(--material-selected-shadow);
+    box-shadow: var(--shadow-lvl2);
     background: #ddf;
     color: #448;
 }
@@ -204,6 +218,7 @@ button.remove-player-button {
     padding-left: .5rem;
 }
 
+
 #cards {
     overflow: hidden;
     display: grid;
@@ -217,16 +232,29 @@ button.remove-player-button {
 .game-preparation .card {
     cursor: default;
     pointer-events: none;
+    transform-origin: 50% 250%;
+}
+@keyframes tiltLeft {
+    from { transform: translateX( 100%); }
+    to { transform: translateX( 100%) rotate(-16deg); }
+}
+@keyframes tiltRight {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(-100%) rotate(16deg); }
 }
 .game-preparation .card:first-of-type {
-    transform: rotate(-15deg) translate(10%, 10%);
+    animation: .5s tiltLeft forwards;
+
 }
 .game-preparation .card:nth-of-type(3) {
-    transform: rotate(15deg) translate(-10%, 10%);
+    animation: .5s tiltRight forwards;
+
 }
 .game-preparation .start-button {
     grid-area: 2 / 1 / 3 / 4;
-    font-size: 2rem;
+    font-size: 1.5rem;
+    width: 6em;
+    place-self: center;
 }
 #cards.game-started,
 #cards.game-over
@@ -240,22 +268,34 @@ button.remove-player-button {
 .game-over {
     position: relative;
 }
-.game-over-text {
+.game-over-screen {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     font-size: 3em;
 }
-h1, .game-over-text {
-    font-weight: 800;
-    -webkit-text-stroke: .033em white;
-    text-shadow: .025em .025em .1em rgba(0, 0, 0, .5);
+
+@keyframes fade {
+    from { opacity: 1; }
+    to { opacity: .5; }
 }
+#cards.game-over .card {
+    animation: .5s fade forwards;
+}
+@keyframes appear {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.game-over-screen {
+    animation: .5s appear forwards;
+}
+
 #cards .card {
     --card-inner-glow: inset 0 0 4vmin;
     --card-inner-border: inset 0 0 0 1vmin;
@@ -271,19 +311,19 @@ h1, .game-over-text {
 
     border: 1px solid transparent;
     border-radius: 0.5vmin;
-    box-shadow: var(--material-shadow),
+    box-shadow: var(--shadow-lvl1),
                 var(--card-inner-glow) #eee;
 }
-@media (hover) {
+@media (any-hover) {
     #cards .card:hover {
         background: var(--bg-color);
-        box-shadow: var(--material-shadow),
+        box-shadow: var(--shadow-lvl1),
                     var(--card-inner-glow) var(--highlight-color);
     }
 }
 #cards .card.selected {
     background: var(--bg-color);
-    box-shadow: var(--material-shadow),
+    box-shadow: var(--shadow-lvl1),
                 var(--card-inner-border) var(--highlight-color);
 }
 .card .svg-inline--fa {

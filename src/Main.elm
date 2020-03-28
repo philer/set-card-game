@@ -137,6 +137,7 @@ type Msg
   = NoOp
   | WindowResize
   | SetCardSize (Result Dom.Error Dom.Element)
+  | NewGame
   | AddPlayer
   | RemovePlayer Int
   | SetPlayername Int String
@@ -169,6 +170,15 @@ update msg ({players, cards, deck, selectedCards} as model) =
         height = (h - gap * (rows + 1)) / rows
       in
       ( { model | cardSize = (width, height) }
+      , Cmd.none
+      )
+    NewGame ->
+      ( { model
+        | gameState = Preparation
+        , players = Array.map (.name >> newPlayer) players
+        , selectedCards = Set.empty
+        , validTriple = Nothing
+        }
       , Cmd.none
       )
     AddPlayer ->
@@ -427,7 +437,13 @@ viewCards { gameState, cards, selectedCards, cardSize, validTriple } =
           cards
       Over ->
         (List.map (\c -> viewCard_ c False False) cards)
-        ++ [ div [ class "game-over-text" ] [ text "Game Over" ] ]
+        ++
+        [ div [ class "game-over-screen" ]
+            [ div [ class "game-over-text" ] [ text "Game Over" ]
+            , button [ class "material new-game-button", onClick NewGame ]
+                [ text "Play Again" ]
+            ]
+        ]
 
 viewCard : (Float, Float) -> Card -> Bool -> Bool -> Html Msg
 viewCard (cardWidth, cardHeight) card selected highlighted =
@@ -459,7 +475,8 @@ viewInfo { gameState, deck, validTriple } =
       text ""
     _ ->
       div [ id "info" ]
-        [ text <| (List.length deck |> String.fromInt) ++ " cards left"
+        [ div [ class "info-text" ]
+            [ text <| (List.length deck |> String.fromInt) ++ " cards left" ]
         , button
             [ class "material"
             , disabled (validTriple /= Nothing || gameState == Over)
