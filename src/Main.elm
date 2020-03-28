@@ -23,6 +23,14 @@ import FontAwesome.Icon as FA exposing (Icon)
 import FontAwesome.Regular as FA
 import List.Extra as List
 
+banner = """             Welcome to
+           ┌───┬───┬─────┬┐
+           │ ──┤ ─┬┴─┐ ┌┬┘│
+          ┌┴── │ ─┴─┐│ │├─┤
+          └────┴────┘└─┘└─┘
+       Created with ❤ and Elm.
+https://github.com/philer/set-card-game"""
+
 -- MODEL
 
 type alias Model =
@@ -83,6 +91,7 @@ cardData id =
 
 -- MAIN
 
+port consoleLog : JE.Value -> Cmd msg
 port storePlayerNames : String -> Cmd msg
 
 main : Program (Maybe String) Model Msg
@@ -118,7 +127,10 @@ init flags =
     , validTriple = Nothing
     , cardSize = (200, 300)  -- arbitrary value
     }
-  , updateCardSize
+  , Cmd.batch
+      [ consoleLog (JE.string banner)
+      , updateCardSize
+      ]
   )
 
 type Msg

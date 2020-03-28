@@ -15,6 +15,7 @@
       const app = Elm.Main.init({
         flags: localStorage.getItem(playerNamesKey)
       });
+      app.ports.consoleLog.subscribe(console.log)
       app.ports.storePlayerNames.subscribe(dataString =>
         localStorage.setItem(playerNamesKey, dataString));
     </script>
