@@ -540,13 +540,22 @@ rectangle =
     , SvgA.height <| String.fromFloat symbolHeight
     ] []
 
+diamond : Svg.Svg Msg
+diamond =
+  let
+    (dx, dy) = (symbolWidth / 2, symbolHeight / 2)
+    coordinates =
+      [ symbolPadding + dx, symbolPadding, dx, dy, -dx, dy, -dx, -dy ]
+    d = "m" ++ (String.join " " <| List.map String.fromFloat coordinates) ++ "z"
+  in
+  Svg.path
+    [ SvgA.id "shape-diamond" , SvgA.class "shape" , SvgA.d d ] []
+
 tilde : Svg.Svg Msg
 tilde =
   Svg.path
     [ SvgA.id "shape-tilde"
     , SvgA.class "shape"
-    , SvgA.x <| String.fromFloat symbolPadding
-    , SvgA.y <| String.fromFloat symbolPadding
     , SvgA.d "m44.2 10c-25.3 0-36.4 23.7-32.4 34.6 3.9 10.7 16.5-6.3 31.1-6.8 16.4-0.6 31.1 20.3 52.9 20.3 25.3 0 36.4-23.7 32.4-34.6-3.9-10.7-16.5 6.3-31.1 6.8-16.4 0.6-31.1-20.3-52.9-20.3z"
     ] []
 
