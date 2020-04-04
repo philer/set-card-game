@@ -38,7 +38,7 @@ type alias Model =
   , players : Array Player
   , deck : List Card
   , cards : List Card
-  , selectedCards : Set Card
+  , selectedCards : Set CardId
   , validTriple : Maybe (List Card)
   , cardSize : (Float, Float)
   }
@@ -57,36 +57,76 @@ type alias Player =
 newPlayer name =
   Player name 0 False
 
-type alias Card = Int
+type alias CardId = Int
 
-type alias CardData =
-  { shape : Shape
+type alias Shape = String
+shapes : Array Shape
+shapes = Array.fromList [ "rectangle", "tilde", "ellipse" ]
+
+type alias Pattern = String
+patterns : Array Pattern
+patterns = Array.fromList [ "full", "half", "empty" ]
+
+type alias Color = String
+colors : Array Color
+colors = Array.fromList [ "red", "green", "blue" ]
+
+type alias Count = Int
+counts : Array Count
+counts = Array.fromList [ 1, 2, 3 ]
+
+type alias Card =
+  { id : CardId
+  , shape : Shape
   , pattern : Pattern
   , color : Color
   , count : Count
   }
 
-type alias Shape = String
-type alias Pattern = String
-type alias Color = String
-type alias Count = Int
 
-generateDeck : Array CardData
+generateDeck : List Card
 generateDeck =
   let
-    product : List a -> List (a -> b) -> List b
-    product l1 = List.map (\b -> List.map b l1) >> List.concat
-  in
-  [CardData]
-    |> product ["rectangle", "tilde", "ellipse"]
-    |> product ["full", "half", "empty"]
-    |> product ["red", "green", "blue"]
-    |> product [1, 2, 3]
-    |> Array.fromList
+    toBase : Int -> Int -> List Int
+    toBase base number =
+      case number // base of
+        0 -> [ number ]
+        x -> modBy base number :: toBase base (number // base)
 
-cardData : Card -> Result String CardData
-cardData id =
-  Array.get id generateDeck |> Result.fromMaybe "invalid card"
+    fromBase : Int -> List Int -> Int
+    fromBase base =
+      List.indexedFoldl (\place digit n -> n + digit * base ^ place) 0
+
+    pad : a -> Int -> List a -> List a
+    pad item count xs =
+      xs ++ List.repeat (count - List.length xs) item
+
+    buildCard : Int -> Card
+    buildCard index =
+      let
+        idxs = toBase 3 index
+      in
+      case pad 0 4 idxs of
+        shapeIndex::patternIndex::colorIndex::countIndex::[] ->
+          Card
+            (fromBase 10 idxs)
+            (Maybe.withDefault "INVALID" <| Array.get shapeIndex shapes)
+            (Maybe.withDefault "INVALID" <| Array.get patternIndex patterns)
+            (Maybe.withDefault "INVALID" <| Array.get colorIndex colors)
+            (Maybe.withDefault -1 <| Array.get countIndex counts)
+        _ ->
+          Card -1 "INVALID" "INVALID" "INVALID" -1  -- should be impossible
+  in
+  List.map buildCard <| List.range 0 80
+
+{-| 0000, 0003, 0006, 0030, ..., 6666 -}
+validCardTripleSums : Set CardId
+validCardTripleSums =
+  Set.fromList (List.map (\card -> card.id * 3) generateDeck)
+
+checkTriple : List CardId -> Bool
+checkTriple ids =
+  Set.member (List.sum ids) validCardTripleSums
 
 
 -- MAIN
@@ -145,7 +185,7 @@ type Msg
   | SetDeck (List Card)
   | CheckImpossible
   | SelectPlayer Int
-  | SelectCard Card
+  | SelectCard CardId
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg ({players, cards, deck, selectedCards} as model) =
@@ -207,7 +247,7 @@ update msg ({players, cards, deck, selectedCards} as model) =
       , Cmd.batch
           [ storePlayerNames
               (JE.encode 0 <| JE.array (.name >> JE.string) players)
-          , Random.generate SetDeck (shuffle <| List.range 0 80)
+          , Random.generate SetDeck (shuffle generateDeck)
           , updateCardSize
           ]
       )
@@ -233,13 +273,13 @@ update msg ({players, cards, deck, selectedCards} as model) =
               { model | validTriple = validTriple }
       , Cmd.none
       )
-    SelectCard card ->
+    SelectCard cardId ->
       ( { model
         | selectedCards =
-            if Set.member card selectedCards then
-              Set.remove card selectedCards
+            if Set.member cardId selectedCards then
+              Set.remove cardId selectedCards
             else if Set.size selectedCards < 3 then
-              Set.insert card selectedCards
+              Set.insert cardId selectedCards
             else
               selectedCards
         }
@@ -287,27 +327,16 @@ makeGuess selectedPlayer ({players, cards, deck, selectedCards} as model) =
           , selectedCards = Set.empty
           }
 
-checkTriple : List Card -> Bool
-checkTriple cards =
-  let
-    base3mask mask n = n // mask |> modBy 3
-    validSum sum = List.member sum [0, 3, 6]
-    mapSum fn = List.foldl (fn >> (+)) 0
-  in
-  List.all
-    (\mask -> validSum <| mapSum (base3mask mask) cards)
-    [1, 3, 9, 27]
-
-removeSelectedCards : Set Card -> List Card -> List Card
+removeSelectedCards : Set CardId -> List Card -> List Card
 removeSelectedCards selected =
-  List.filter (\card -> not <| Set.member card selected)
+  List.filter (\card -> not <| Set.member card.id selected)
 
-replaceSelectedCards : List Card -> Set Card -> List Card -> (List Card, List Card)
+replaceSelectedCards : List Card -> Set CardId -> List Card -> (List Card, List Card)
 replaceSelectedCards deck selected =
   let
     replace : Card -> (List Card, List Card) -> (List Card, List Card)
     replace card ( newDeck, newCards ) =
-      if Set.member card selected then
+      if Set.member card.id selected then
         case newDeck of
           newCard :: remainingDeck ->
             ( remainingDeck, newCard :: newCards )
@@ -332,11 +361,8 @@ checkBlockedPlayers ({ players } as model) =
 
 findValidTriple : List Card -> Maybe (List Card)
 findValidTriple cards =
-  let
-    countUnique = Set.size << Set.fromList
-  in
   List.find
-    (\triple -> countUnique triple == 3 && checkTriple triple)
+    (List.map .id >> \triple -> List.allDifferent triple && checkTriple triple)
     -- TODO optimization: lazy product without duplicates
     (List.cartesianProduct [ cards, cards, cards ])
 
@@ -419,9 +445,9 @@ viewCards { gameState, cards, selectedCards, cardSize, validTriple } =
     ]
     <| case gameState of
       Preparation ->
-        [ viewCard_ 14 False False
-        , viewCard_ 52 False False
-        , viewCard_ 54 False False
+        [ viewCard_ (Card 2 "ellipse" "full" "red" 1) False False
+        , viewCard_ (Card 1111 "tilde" "half" "green" 2) False False
+        , viewCard_ (Card 2220 "rectangle" "empty" "blue" 3) False False
         , button [ class "material start-button", onClick StartGame ]
             [ text "Start"]
         ]
@@ -433,7 +459,7 @@ viewCards { gameState, cards, selectedCards, cardSize, validTriple } =
               _ -> Nothing
         in
         List.map
-          (\c -> lazy3 viewCard_ c (Set.member c selectedCards) (hintCard == Just c))
+          (\c -> lazy3 viewCard_ c (Set.member c.id selectedCards) (hintCard == Just c))
           cards
       Over ->
         (List.map (\c -> viewCard_ c False False) cards)
@@ -446,26 +472,22 @@ viewCards { gameState, cards, selectedCards, cardSize, validTriple } =
         ]
 
 viewCard : (Float, Float) -> Card -> Bool -> Bool -> Html Msg
-viewCard (cardWidth, cardHeight) card selected highlighted =
-    case cardData card of
-      Err error ->
-        button [ class "material card" ] [ text <| "Error: " ++ error ]
-      Ok {count, shape, pattern, color} ->
-        button
-          [ classList
-              [ ("material", True)
-              , ("card", True)
-              , ("card-" ++ color, True)
-              , ("selected", selected)
-              ]
-          , style "width" <| String.fromFloat cardWidth ++ "px"
-          , style "height" <| String.fromFloat cardHeight ++ "px"
-          , onClick <| SelectCard card
-          ]
-          <|
-            (List.repeat count <| lazy3 shape2svg shape pattern color)
-            ++
-            (if highlighted then [FA.viewIcon FA.smileWink] else [])
+viewCard (width, height) { id, shape, pattern, color, count } selected highlighted =
+  button
+    [ classList
+        [ ("material", True)
+        , ("card", True)
+        , ("card-" ++ color, True)
+        , ("selected", selected)
+        ]
+    , style "width" <| String.fromFloat width ++ "px"
+    , style "height" <| String.fromFloat height ++ "px"
+    , onClick <| SelectCard id
+    ]
+    <|
+      (List.repeat count <| lazy3 shape2svg shape pattern color)
+      ++
+      (if highlighted then [FA.viewIcon FA.smileWink] else [])
 
 
 viewInfo : Model -> Html Msg
