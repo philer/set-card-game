@@ -359,12 +359,33 @@ checkBlockedPlayers ({ players } as model) =
   else
     model
 
+distinctCombinations : Int -> List a -> List (List a)
+distinctCombinations len items =
+  let
+    fatFold : (a -> List a -> b -> b) -> b -> List a -> b
+    fatFold fn acc lst =
+      case lst of
+        [] -> acc
+        x::xs -> fatFold fn (fn x xs acc) xs
+  in
+  if len <= 0 || items == [] then
+    []
+  else if len == 1 then
+    List.map List.singleton items
+  else
+    fatFold
+      (\x xs acc ->
+        (List.map ((::) x) (distinctCombinations (len - 1) xs)) ++ acc
+      )
+      []
+      items
+
 findValidTriple : List Card -> Maybe (List Card)
 findValidTriple cards =
   List.find
-    (List.map .id >> \triple -> List.allDifferent triple && checkTriple triple)
-    -- TODO optimization: lazy product without duplicates
-    (List.cartesianProduct [ cards, cards, cards ])
+    (List.map .id >> checkTriple)
+    -- TODO optimization: lazy
+    (distinctCombinations 3 cards)
 
 
 -- VIEW
