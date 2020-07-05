@@ -12,8 +12,7 @@ import Html.Lazy exposing (lazy, lazy2, lazy3)
 import Json.Decode as JD exposing (decodeString, array, string)
 import Json.Encode as JE exposing (encode, array, string)
 import Random
-import Random.List exposing (shuffle)
-import Random.Set exposing (sample)
+import Random.List exposing (shuffle, choose)
 import Set exposing (Set)
 import Svg
 import Svg.Attributes as SvgA
@@ -39,8 +38,8 @@ type alias Model =
   , players : Array Player
   , deck : List Card
   , cards : List Card
-  , selectedCards : Set CardId
-  , hintCards : Set CardId
+  , selectedCards : List CardId
+  , hintCards : List CardId
   , validTriple : Maybe (List Card)
   , cardSize : (Float, Float)
   }
@@ -168,8 +167,8 @@ init flags =
     , players = Array.map newPlayer playerNames
     , deck = []
     , cards = []
-    , selectedCards = Set.empty
-    , hintCards = Set.empty
+    , selectedCards = []
+    , hintCards = []
     , validTriple = Nothing
     , cardSize = (200, 300)  -- arbitrary value
     }
@@ -191,7 +190,7 @@ type Msg
   | SetDeck (List Card)
   | CheckImpossible
   | AddHint CardId
-  | SelectCard CardId Bool
+  | SelectCard CardId
   | MakeGuess Int
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -223,8 +222,8 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
       ( { model
         | gameState = Preparation
         , players = Array.map (.name >> newPlayer) players
-        , selectedCards = Set.empty
-        , hintCards = Set.empty
+        , selectedCards = []
+        , hintCards = []
         , validTriple = Nothing
         }
       , Cmd.none
@@ -266,18 +265,20 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
     CheckImpossible ->
       checkImpossible model
     AddHint cardId ->
-      ( { model | hintCards = Set.insert cardId hintCards }
-      , msg2cmd (SelectCard cardId False)
+      ( { model
+        | hintCards = cardId :: hintCards
+        , selectedCards =
+            cardId :: hintCards ++ selectedCards |> List.unique |> List.take 3
+        }
+      , Cmd.none
       )
-    SelectCard cardId toggle ->
+    SelectCard cardId ->
       ( { model
         | selectedCards =
-            if Set.member cardId selectedCards && toggle then
-              Set.remove cardId selectedCards
-            else if Set.size selectedCards < 3 then
-              Set.insert cardId selectedCards
+            if List.member cardId selectedCards then
+                List.remove cardId selectedCards
             else
-              selectedCards
+              List.take 3 (cardId :: selectedCards)
         }
       , Cmd.none
       )
@@ -286,14 +287,14 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
 
 makeGuess : Int -> Model -> (Model, Cmd Msg)
 makeGuess playerIndex ({players, cards, deck, selectedCards} as model) =
-  if Set.size selectedCards /= 3 then
+  if List.length selectedCards < 3 then
     ( model, Cmd.none )
   else
     case Array.get playerIndex players of
       Nothing ->  -- error, should not be possible
         ( model, consoleErr <| "Unknown Player index: " ++ String.fromInt playerIndex)
       Just player ->
-        ( if checkTriple (Set.toList selectedCards) then
+        ( if checkTriple selectedCards then
             let
               (newDeck, newCards) =
                 if List.length cards <= 12 then
@@ -310,8 +311,8 @@ makeGuess playerIndex ({players, cards, deck, selectedCards} as model) =
                     players
               , deck = newDeck
               , cards = newCards
-              , selectedCards = Set.empty
-              , hintCards = Set.empty
+              , selectedCards = []
+              , hintCards = []
               , validTriple = findValidTriple newCards
               }
           else
@@ -322,7 +323,7 @@ makeGuess playerIndex ({players, cards, deck, selectedCards} as model) =
                     playerIndex
                     { player | blocked = True }
                     players
-              , selectedCards = Set.empty
+              , selectedCards = []
               }
         , Cmd.none
         )
@@ -340,12 +341,15 @@ checkImpossible ({ deck, cards, validTriple, hintCards } as model) =
         )
       Just triple ->
         ( model
-        , Set.diff (List.map .id triple |> Set.fromList) hintCards
-            |> sample |> Random.generate (\hint ->
-                case hint of
+        , List.map .id triple
+            |> List.filter (\cardId -> not <| List.member cardId hintCards)
+            |> choose
+            |> Random.generate (\(maybeHintCardId, _) ->
+                case maybeHintCardId of
                   Nothing -> NoOp
-                  Just cardId -> AddHint cardId
+                  Just hintCardId -> AddHint hintCardId
               )
+        )
 
 addCards : Int -> Model -> Model
 addCards count ({ deck, cards } as model) =
@@ -358,16 +362,16 @@ addCards count ({ deck, cards } as model) =
   , validTriple = findValidTriple newCards
   }
 
-removeSelectedCards : Set CardId -> List Card -> List Card
-removeSelectedCards selected =
-  List.filter (\card -> not <| Set.member card.id selected)
+removeSelectedCards : List CardId -> List Card -> List Card
+removeSelectedCards selectedCards =
+  List.filter (\card -> not <| List.member card.id selectedCards)
 
-replaceSelectedCards : List Card -> Set CardId -> List Card -> (List Card, List Card)
-replaceSelectedCards deck selected =
+replaceSelectedCards : List Card -> List CardId -> List Card -> (List Card, List Card)
+replaceSelectedCards deck selectedCards =
   let
     replace : Card -> (List Card, List Card) -> (List Card, List Card)
     replace card ( newDeck, newCards ) =
-      if Set.member card.id selected then
+      if List.member card.id selectedCards then
         case newDeck of
           newCard :: remainingDeck ->
             ( remainingDeck, newCard :: newCards )
@@ -505,7 +509,12 @@ viewCards { gameState, cards, selectedCards, cardSize, hintCards } =
         ]
       Started ->
         List.map
-          (\c -> lazy3 viewCard_ c (Set.member c.id selectedCards) (Set.member c.id hintCards))
+          (\c -> lazy3
+            viewCard_
+            c
+            (List.member c.id selectedCards)
+            (List.member c.id hintCards)
+          )
           cards
       Over ->
         (List.map (\c -> viewCard_ c False False) cards)
@@ -528,7 +537,7 @@ viewCard (width, height) { id, shape, pattern, color, count } selected highlight
         ]
     , style "width" <| String.fromFloat width ++ "px"
     , style "height" <| String.fromFloat height ++ "px"
-    , onClick <| SelectCard id True
+    , onClick <| SelectCard id
     ]
     <|
       (List.repeat count <| lazy3 shape2svg shape pattern color)
@@ -547,16 +556,16 @@ viewInfo { gameState, deck, hintCards } =
             [ text <| (List.length deck |> String.fromInt) ++ " cards left" ]
         , button
             [ class "material"
-            , disabled (Set.size hintCards >= 3 || gameState == Over)
+            , disabled (List.length hintCards >= 3 || gameState == Over)
             , onClick CheckImpossible
             ]
             [ text <|
                 if gameState == Over then
                  "Impossible."
-                else if Set.size hintCards == 0 then
+                else if List.length hintCards == 0 then
                   "Impossible?"
                 else
-                  "Possible!" ++ if Set.size hintCards < 3 then " (Next Hint)" else ""
+                  "Possible!" ++ if List.length hintCards < 3 then " (Next Hint)" else ""
             ]
         ]
 
