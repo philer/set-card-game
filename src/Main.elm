@@ -132,7 +132,11 @@ checkTriple ids =
 
 -- MAIN
 
-port consoleLog : JE.Value -> Cmd msg
+port consoleLogValue : JE.Value -> Cmd msg
+port consoleErrValue : JE.Value -> Cmd msg
+consoleLog = JE.string >> consoleLogValue
+consoleErr = JE.string >> consoleErrValue
+
 port storePlayerNames : String -> Cmd msg
 
 main : Program (Maybe String) Model Msg
@@ -170,7 +174,7 @@ init flags =
     , cardSize = (200, 300)  -- arbitrary value
     }
   , Cmd.batch
-      [ consoleLog (JE.string banner)
+      [ consoleLog banner
       , updateCardSize
       ]
   )
@@ -197,8 +201,8 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
       ( model, Cmd.none )
     WindowResize ->
       ( model, updateCardSize )
-    SetCardSize (Err error) ->
-      ( model, Cmd.none )
+    SetCardSize (Err (Dom.NotFound error)) ->
+      ( model, consoleErr <| "Error while retrieving #cards element: " ++ error )
     SetCardSize (Ok { element }) ->
       let
         ratio = 1.1
@@ -260,7 +264,7 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
       , Cmd.none
       )
     CheckImpossible ->
-      Tuple.mapFirst unblockAllPlayers <| checkImpossible model
+      checkImpossible model
     AddHint cardId ->
       ( { model | hintCards = Set.insert cardId hintCards }
       , msg2cmd (SelectCard cardId False)
@@ -278,68 +282,70 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
       , Cmd.none
       )
     MakeGuess playerIndex ->
-      ( makeGuess playerIndex model, Cmd.none )
+      makeGuess playerIndex model
 
-makeGuess : Int -> Model -> Model
+makeGuess : Int -> Model -> (Model, Cmd Msg)
 makeGuess playerIndex ({players, cards, deck, selectedCards} as model) =
   if Set.size selectedCards /= 3 then
-    model
+    ( model, Cmd.none )
   else
     case Array.get playerIndex players of
       Nothing ->  -- error, should not be possible
-        model
+        ( model, consoleErr <| "Unknown Player index: " ++ String.fromInt playerIndex)
       Just player ->
-        if checkTriple (Set.toList selectedCards) then
-          let
-            (newDeck, newCards) =
-              if List.length cards <= 12 then
-                replaceSelectedCards deck selectedCards cards
-              else
-                (deck, removeSelectedCards selectedCards cards)
-          in
-          unblockAllPlayers
-            { model
-            | players =
-                Array.set
-                  playerIndex
-                  { player | score = player.score + 3 }
-                  players
-            , deck = newDeck
-            , cards = newCards
-            , selectedCards = Set.empty
-            , hintCards = Set.empty
-            , validTriple = findValidTriple newCards
-            }
-        else
-          checkBlockedPlayers
-            { model
-            | players =
-                Array.set
-                  playerIndex
-                  { player | blocked = True }
-                  players
-            , selectedCards = Set.empty
-            }
+        ( if checkTriple (Set.toList selectedCards) then
+            let
+              (newDeck, newCards) =
+                if List.length cards <= 12 then
+                  replaceSelectedCards deck selectedCards cards
+                else
+                  (deck, removeSelectedCards selectedCards cards)
+            in
+            unblockAllPlayers
+              { model
+              | players =
+                  Array.set
+                    playerIndex
+                    { player | score = player.score + 3 }
+                    players
+              , deck = newDeck
+              , cards = newCards
+              , selectedCards = Set.empty
+              , hintCards = Set.empty
+              , validTriple = findValidTriple newCards
+              }
+          else
+            checkBlockedPlayers
+              { model
+              | players =
+                  Array.set
+                    playerIndex
+                    { player | blocked = True }
+                    players
+              , selectedCards = Set.empty
+              }
+        , Cmd.none
+        )
 
 checkImpossible : Model -> (Model, Cmd Msg)
 checkImpossible ({ deck, cards, validTriple, hintCards } as model) =
-  case validTriple of
-    Nothing ->
-      ( if List.length deck == 0 then
-          { model | gameState = Over }
-        else
-          addCards 3 model
-      , Cmd.none
-      )
-    Just triple ->
-      ( model
-      , Set.diff (List.map .id triple |> Set.fromList) hintCards
-          |> sample |> Random.generate (\hint ->
-              case hint of
-                Nothing -> NoOp
-                Just cardId -> AddHint cardId
-            )
-      )
+  Tuple.mapFirst unblockAllPlayers
+    <| case validTriple of
+      Nothing ->
+        ( if List.length deck == 0 then
+            { model | gameState = Over }
+          else
+            addCards 3 model
+        , Cmd.none
+        )
+      Just triple ->
+        ( model
+        , Set.diff (List.map .id triple |> Set.fromList) hintCards
+            |> sample |> Random.generate (\hint ->
+                case hint of
+                  Nothing -> NoOp
+                  Just cardId -> AddHint cardId
+              )
 
 addCards : Int -> Model -> Model
 addCards count ({ deck, cards } as model) =
