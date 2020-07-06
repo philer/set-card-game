@@ -11,14 +11,27 @@
     <noscript>This game requires JavaScript.</noscript>
     <script>
       "use strict";
-      const playerNamesKey = "set-card-game.player-names";
+      const LOCAL_STORAGE_PREFIX = "set-card-game";
+
+      const playerNamesKey = LOCAL_STORAGE_PREFIX + ".player-names";
+      const playerNames = localStorage.getItem(playerNamesKey);
       const app = Elm.Main.init({
-        flags: localStorage.getItem(playerNamesKey)
+        flags: playerNames ? JSON.parse(playerNames) : null
       });
-      app.ports.consoleLogValue.subscribe(console.log)
-      app.ports.consoleErrValue.subscribe(console.error)
-      app.ports.storePlayerNames.subscribe(dataString =>
-        localStorage.setItem(playerNamesKey, dataString));
+      app.ports.playerNamesPort.subscribe(data => {
+        localStorage.setItem(playerNamesKey, JSON.stringify(data))
+      });
+
+      const gameResultsKey = LOCAL_STORAGE_PREFIX + ".game-results";
+      app.ports.gameResultPort.subscribe(data => {
+        const resultsJson = localStorage.getItem(gameResultsKey);
+        const results = resultsJson ? JSON.parse(resultsJson) : []
+        results.push(data)
+        localStorage.setItem(gameResultsKey, JSON.stringify(results));
+      });
+
+      app.ports.consoleLogPort.subscribe(console.log);
+      app.ports.consoleErrPort.subscribe(console.error);
     </script>
   </body>
 </html>

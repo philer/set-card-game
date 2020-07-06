@@ -10,13 +10,14 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Html.Lazy exposing (lazy, lazy2, lazy3)
 import Json.Decode as JD exposing (decodeString, array, string)
-import Json.Encode as JE exposing (encode, array, string)
+import Json.Encode as JE exposing (encode, array, string, dict)
 import Random
 import Random.List exposing (shuffle, choose)
 import Set exposing (Set)
 import Svg
 import Svg.Attributes as SvgA
 import Task exposing (Task)
+import Time
 
 import Array.Extra as Array
 import FontAwesome.Icon as FA exposing (Icon)
@@ -129,16 +130,28 @@ checkTriple ids =
   Set.member (List.sum ids) validCardTripleSums
 
 
+-- PORTS
+
+
+port consoleLogPort : JE.Value -> Cmd msg
+port consoleErrPort : JE.Value -> Cmd msg
+consoleLog = JE.string >> consoleLogPort
+consoleErr = JE.string >> consoleErrPort
+
+port playerNamesPort : JE.Value -> Cmd msg
+storePlayerNames : Model -> Cmd msg
+storePlayerNames { players } =
+  JE.array (.name >> JE.string) players |> playerNamesPort
+
+port gameResultPort : JE.Value -> Cmd msg
+storeGameResult : Cmd Msg
+storeGameResult =
+  Task.perform StoreGameResult Time.now
+
+
 -- MAIN
 
-port consoleLogValue : JE.Value -> Cmd msg
-port consoleErrValue : JE.Value -> Cmd msg
-consoleLog = JE.string >> consoleLogValue
-consoleErr = JE.string >> consoleErrValue
-
-port storePlayerNames : String -> Cmd msg
-
-main : Program (Maybe String) Model Msg
+main : Program (Maybe (Array String)) Model Msg
 main =
   Browser.document
     { init = init
@@ -155,13 +168,12 @@ updateCardSize : Cmd Msg
 updateCardSize =
   Task.attempt SetCardSize (Dom.getElement "cards")
 
-init : (Maybe String) -> ( Model, Cmd Msg )
+init : (Maybe (Array String)) -> ( Model, Cmd Msg )
 init flags =
   let
     playerNames =
-      flags
-        |> Maybe.andThen (JD.decodeString (JD.array JD.string) >> Result.toMaybe)
-        |> Maybe.withDefault (Array.fromList [ "Player 1", "Player 2" ])
+      Maybe.withDefault (Array.fromList [ "Player 1", "Player 2" ]) flags
+
   in
   ( { gameState = Preparation
     , players = Array.map newPlayer playerNames
@@ -192,6 +204,7 @@ type Msg
   | AddHint CardId
   | SelectCard CardId
   | MakeGuess Int
+  | StoreGameResult Time.Posix
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
@@ -252,8 +265,7 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
     StartGame ->
       ( { model | gameState = Started }
       , Cmd.batch
-          [ storePlayerNames
-              (JE.encode 0 <| JE.array (.name >> JE.string) players)
+          [ storePlayerNames model
           , Random.generate SetDeck (shuffle generateDeck)
           , updateCardSize
           ]
@@ -284,6 +296,17 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
       )
     MakeGuess playerIndex ->
       makeGuess playerIndex model
+    StoreGameResult timestamp ->
+      ( model
+      , gameResultPort <| JE.object
+        [ ( "timestamp", timestamp |> Time.posixToMillis |> JE.int )
+        , ( "players"
+          , players
+              |> Array.mapToList (\{ name, score } -> ( name, JE.int score ))
+              |> JE.object
+          )
+        ]
+      )
 
 makeGuess : Int -> Model -> (Model, Cmd Msg)
 makeGuess playerIndex ({players, cards, deck, selectedCards} as model) =
@@ -333,12 +356,10 @@ checkImpossible ({ deck, cards, validTriple, hintCards } as model) =
   Tuple.mapFirst unblockAllPlayers
     <| case validTriple of
       Nothing ->
-        ( if List.length deck == 0 then
-            { model | gameState = Over }
-          else
-            addCards 3 model
-        , Cmd.none
-        )
+        if List.length deck == 0 then
+          ( { model | gameState = Over }, storeGameResult )
+        else
+          ( addCards 3 model, Cmd.none )
       Just triple ->
         ( model
         , List.map .id triple
