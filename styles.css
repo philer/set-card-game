@@ -62,6 +62,10 @@ input
     font-weight: inherit;
     color: inherit;
     background: transparent;
+    appearance: none;
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    -webkit-border-radius: 0;
 }
 button {
     cursor: pointer;
