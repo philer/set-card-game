@@ -3,14 +3,14 @@ port module Main exposing (..)
 import Array exposing (Array)
 import Browser
 import Browser.Dom as Dom
-import Browser.Events as Events
+import Browser.Events exposing (onResize)
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Html.Lazy exposing (lazy, lazy2, lazy3)
-import Json.Decode as JD exposing (decodeString, array, string)
-import Json.Encode as JE exposing (encode, array, string, dict)
+import Json.Decode as JD
+import Json.Encode as JE
 import Random
 import Random.List exposing (shuffle, choose)
 import Set exposing (Set)
@@ -20,7 +20,7 @@ import Task exposing (Task)
 import Time
 
 import Array.Extra as Array
-import FontAwesome.Icon as FA exposing (Icon)
+import FontAwesome.Icon as FA
 import FontAwesome.Regular as FA
 import List.Extra as List
 
@@ -157,7 +157,7 @@ main =
     { init = init
     , update = update
     , view = \model -> { title = "SET!", body = view model }
-    , subscriptions = \_ -> Events.onResize (\_ _ -> WindowResize)
+    , subscriptions = \_ -> onResize (\_ _ -> WindowResize)
     }
 
 msg2cmd : Msg -> Cmd Msg
