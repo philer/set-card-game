@@ -2,8 +2,7 @@ module TestMain exposing (..)
 
 import Main exposing (..)
 
-import Expect exposing (Expectation)
-import Fuzz exposing (Fuzzer, int, list, string)
+import Expect
 import Test exposing (..)
 import Set
 import Array
@@ -116,5 +115,5 @@ suiteDistinctCombinations =
             \_ ->
                 Expect.equal
                     (distinctCombinations 4 [ 1, 2, 3, 4 ])
-                    ([ [ 1, 2, 3, 4 ] ])
+                    [ [ 1, 2, 3, 4 ] ]
         ]

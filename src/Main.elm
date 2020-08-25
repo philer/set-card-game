@@ -4,23 +4,21 @@ import Array exposing (Array)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events as Events
-import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
-import Html.Lazy exposing (lazy, lazy2, lazy3)
-import Json.Decode as JD exposing (decodeString, array, string)
-import Json.Encode as JE exposing (encode, array, string, dict)
+import Html.Lazy as Lazy
+import Json.Encode as JE
 import Random
 import Random.List exposing (shuffle, choose)
 import Set exposing (Set)
 import Svg
 import Svg.Attributes as SvgA
-import Task exposing (Task)
+import Task
 import Time
 
 import Array.Extra as Array
-import FontAwesome.Icon as FA exposing (Icon)
+import FontAwesome.Icon as FA
 import FontAwesome.Regular as FA
 import List.Extra as List
 
@@ -56,6 +54,7 @@ type alias Player =
   , blocked : Bool
   }
 
+newPlayer : String -> Player
 newPlayer name =
   Player name 0 False
 
@@ -92,7 +91,7 @@ generateDeck =
     toBase base number =
       case number // base of
         0 -> [ number ]
-        x -> modBy base number :: toBase base (number // base)
+        _ -> modBy base number :: toBase base (number // base)
 
     fromBase : Int -> List Int -> Int
     fromBase base =
@@ -132,10 +131,12 @@ checkTriple ids =
 
 -- PORTS
 
-
 port consoleLogPort : JE.Value -> Cmd msg
-port consoleErrPort : JE.Value -> Cmd msg
+consoleLog : String -> Cmd msg
 consoleLog = JE.string >> consoleLogPort
+
+port consoleErrPort : JE.Value -> Cmd msg
+consoleErr : String -> Cmd msg
 consoleErr = JE.string >> consoleErrPort
 
 port playerNamesPort : JE.Value -> Cmd msg
@@ -209,28 +210,34 @@ type Msg
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case ( msg, model ) of
+
     ( NoOp, _ ) ->
       ( model, Cmd.none )
+
     ( WindowResize, _ ) ->
       ( model, updateCardSize )
-    ( SetCardSize (Err (Dom.NotFound error)), _ ) ->
-      ( model, consoleErr <| "Error while retrieving #cards element: " ++ error )
-    ( SetCardSize (Ok { element }), _ ) ->
-      let
-        ratio = 1.1
-        (columns, rows) = (5, 3)
-        (w, h) =
-          if element.width / element.height < ratio then
-            (element.width, element.width / ratio)
-          else
-            (element.height * ratio, element.height)
-        gap = w * 0.01
-        width = (w - gap * (columns + 1)) / columns
-        height = (h - gap * (rows + 1)) / rows
-      in
-      ( { model | cardSize = (width, height) }
-      , Cmd.none
-      )
+
+    ( SetCardSize domInfo, _ ) ->
+      case domInfo of
+        Err (Dom.NotFound error) ->
+          ( model, consoleErr <| "Error while retrieving #cards element: " ++ error )
+        Ok { element } ->
+          let
+            ratio = 1.1
+            ( columns, rows ) = ( 5, 3 )
+            ( w, h ) =
+              if element.width / element.height < ratio then
+                (element.width, element.width / ratio)
+              else
+                (element.height * ratio, element.height)
+            gap = w * 0.01
+            width = (w - gap * (columns + 1)) / columns
+            height = (h - gap * (rows + 1)) / rows
+          in
+          ( { model | cardSize = ( width, height ) }
+          , Cmd.none
+          )
+
     ( NewGame, { players } ) ->
       ( { model
         | gameState = Preparation
@@ -241,6 +248,7 @@ update msg model =
         }
       , Cmd.none
       )
+
     ( AddPlayer, { players } ) ->
       let
         name = "Player " ++ (String.fromInt <| Array.length players + 1)
@@ -248,10 +256,12 @@ update msg model =
       ( { model | players = Array.push (newPlayer name) players }
       , updateCardSize
       )
+
     ( RemovePlayer index, { players } ) ->
       ( { model | players = Array.removeAt index players }
       , updateCardSize
       )
+
     ( SetPlayername index name, { players } ) ->
       case Array.get index players of
         Just player ->
@@ -262,6 +272,7 @@ update msg model =
           )
         Nothing ->
           ( model, Cmd.none )
+
     ( StartGame, _ ) ->
       ( { model | gameState = Started }
       , Cmd.batch
@@ -270,12 +281,15 @@ update msg model =
           , updateCardSize
           ]
       )
+
     ( SetDeck newDeck, _ ) ->
       ( addCards 12 { model | deck = newDeck, cards = [] }
       , Cmd.none
       )
+
     ( CheckImpossible, _ ) ->
       checkImpossible model
+
     ( AddHint cardId, { hintCards, selectedCards } ) ->
       ( { model
         | hintCards = cardId :: hintCards
@@ -284,6 +298,7 @@ update msg model =
         }
       , Cmd.none
       )
+
     ( SelectCard cardId, { selectedCards } ) ->
       ( { model
         | selectedCards =
@@ -294,8 +309,10 @@ update msg model =
         }
       , Cmd.none
       )
+
     ( MakeGuess playerIndex, _ ) ->
       makeGuess playerIndex model
+
     ( StoreGameResult timestamp, { players } ) ->
       ( model
       , gameResultPort <| JE.object
@@ -352,7 +369,7 @@ makeGuess playerIndex ({players, cards, deck, selectedCards} as model) =
         )
 
 checkImpossible : Model -> (Model, Cmd Msg)
-checkImpossible ({ deck, cards, validTriple, hintCards } as model) =
+checkImpossible ({ deck, validTriple, hintCards } as model) =
   Tuple.mapFirst unblockAllPlayers
     <| case validTriple of
       Nothing ->
@@ -431,7 +448,7 @@ distinctCombinations len items =
   else
     fatFold
       (\x xs acc ->
-        (List.map ((::) x) (distinctCombinations (len - 1) xs)) ++ acc
+        List.map ((::) x) (distinctCombinations (len - 1) xs) ++ acc
       )
       []
       items
@@ -463,7 +480,7 @@ viewPlayers { gameState, players } =
       let
         canRemove = Array.length players > 1
       in
-      (Array.indexedMapToList (\i p -> viewPlayerInput i p canRemove) players)
+      Array.indexedMapToList (\i p -> viewPlayerInput i p canRemove) players
       ++ [ button
             [ class "material add-player-button" , onClick AddPlayer ]
             [ text "+" ]
@@ -486,7 +503,7 @@ viewPlayerInput index player canRemove =
           , placeholder "Player Name"
           , value player.name
           , onInput (SetPlayername index)
-          , onSubmit (StartGame)
+          , onSubmit StartGame
           ] []
     ] ++ if canRemove then
         [ button [ class "remove-player-button", onClick (RemovePlayer index) ]
@@ -530,7 +547,7 @@ viewCards { gameState, cards, selectedCards, cardSize, hintCards } =
         ]
       Started ->
         List.map
-          (\c -> lazy3
+          (\c -> Lazy.lazy3
             viewCard_
             c
             (List.member c.id selectedCards)
@@ -538,7 +555,7 @@ viewCards { gameState, cards, selectedCards, cardSize, hintCards } =
           )
           cards
       Over ->
-        (List.map (\c -> viewCard_ c False False) cards)
+        List.map (\c -> viewCard_ c False False) cards
         ++
         [ div [ class "game-over-screen" ]
             [ div [ class "game-over-text" ] [ text "Game Over" ]
@@ -561,7 +578,7 @@ viewCard (width, height) { id, shape, pattern, color, count } selected highlight
     , onClick <| SelectCard id
     ]
     <|
-      (List.repeat count <| lazy3 shape2svg shape pattern color)
+      (List.repeat count <| Lazy.lazy3 shape2svg shape pattern color)
       ++
       (if highlighted then [ FA.viewIcon FA.smileWink ] else [])
 
