@@ -207,15 +207,15 @@ type Msg
   | StoreGameResult Time.Posix
 
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
-  case msg of
-    NoOp ->
+update msg model =
+  case ( msg, model ) of
+    ( NoOp, _ ) ->
       ( model, Cmd.none )
-    WindowResize ->
+    ( WindowResize, _ ) ->
       ( model, updateCardSize )
-    SetCardSize (Err (Dom.NotFound error)) ->
+    ( SetCardSize (Err (Dom.NotFound error)), _ ) ->
       ( model, consoleErr <| "Error while retrieving #cards element: " ++ error )
-    SetCardSize (Ok { element }) ->
+    ( SetCardSize (Ok { element }), _ ) ->
       let
         ratio = 1.1
         (columns, rows) = (5, 3)
@@ -231,7 +231,7 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
       ( { model | cardSize = (width, height) }
       , Cmd.none
       )
-    NewGame ->
+    ( NewGame, { players } ) ->
       ( { model
         | gameState = Preparation
         , players = Array.map (.name >> newPlayer) players
@@ -241,18 +241,18 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
         }
       , Cmd.none
       )
-    AddPlayer ->
+    ( AddPlayer, { players } ) ->
       let
         name = "Player " ++ (String.fromInt <| Array.length players + 1)
       in
       ( { model | players = Array.push (newPlayer name) players }
       , updateCardSize
       )
-    RemovePlayer index ->
+    ( RemovePlayer index, { players } ) ->
       ( { model | players = Array.removeAt index players }
       , updateCardSize
       )
-    SetPlayername index name ->
+    ( SetPlayername index name, { players } ) ->
       case Array.get index players of
         Just player ->
           ( { model
@@ -262,7 +262,7 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
           )
         Nothing ->
           ( model, Cmd.none )
-    StartGame ->
+    ( StartGame, _ ) ->
       ( { model | gameState = Started }
       , Cmd.batch
           [ storePlayerNames model
@@ -270,13 +270,13 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
           , updateCardSize
           ]
       )
-    SetDeck newDeck ->
+    ( SetDeck newDeck, _ ) ->
       ( addCards 12 { model | deck = newDeck, cards = [] }
       , Cmd.none
       )
-    CheckImpossible ->
+    ( CheckImpossible, _ ) ->
       checkImpossible model
-    AddHint cardId ->
+    ( AddHint cardId, { hintCards, selectedCards } ) ->
       ( { model
         | hintCards = cardId :: hintCards
         , selectedCards =
@@ -284,7 +284,7 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
         }
       , Cmd.none
       )
-    SelectCard cardId ->
+    ( SelectCard cardId, { selectedCards } ) ->
       ( { model
         | selectedCards =
             if List.member cardId selectedCards then
@@ -294,9 +294,9 @@ update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
         }
       , Cmd.none
       )
-    MakeGuess playerIndex ->
+    ( MakeGuess playerIndex, _ ) ->
       makeGuess playerIndex model
-    StoreGameResult timestamp ->
+    ( StoreGameResult timestamp, { players } ) ->
       ( model
       , gameResultPort <| JE.object
         [ ( "timestamp", timestamp |> Time.posixToMillis |> JE.int )
