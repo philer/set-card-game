@@ -1,3 +1,5 @@
+@charset "UTF-8";
+
 :root {
     --red: #f44;
     --green: #2b2;
@@ -62,6 +64,12 @@ input
     font-weight: inherit;
     color: inherit;
     background: transparent;
+
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    -ms-appearance: none;
+    -o-appearance: none;
+    appearance: none;
 }
 button {
     cursor: pointer;
@@ -99,6 +107,7 @@ body {
     padding: 1rem;
     align-items: stretch;
 }
+pre { text-align: left }
 h1,
 .game-over-text {
     font-weight: 800;
@@ -156,7 +165,7 @@ button.material {
 @media (pointer: fine) {
     .material,
     button.material {
-        line-height: 1.2rem;
+        line-height: 1.5rem;
     }
 }
 @media (any-hover) {
