@@ -363,3 +363,84 @@ button.remove-player-button {
 .shape-half.shape-red { fill: url(#pattern-diagonal-hatch-red); }
 .shape-half.shape-green { fill: url(#pattern-diagonal-hatch-green); }
 .shape-half.shape-blue { fill: url(#pattern-diagonal-hatch-blue); }
+
+
+/* Dark Theme */
+@media (prefers-color-scheme: dark) {
+    /*
+    #282923
+    #f92672
+    #a6e22e
+    #66d9ef
+    #fd971f
+    #ae81ff
+
+    https://monokai.pro/
+    #ff6188 #af1138
+    #fc9867
+    #ffd866
+    #a9dc76 #598c26
+    #78dce8 #287c88
+    #ab9df2 #5b4da2
+    */
+    :root {
+        --red: #ff6188;
+        --green: #a9dc76;
+        --blue: #ab9df2;
+        --text-color: #bbb;
+        --shadow-lvl1: 1px 1px 2px #0003,
+                       0 0 3px #0003;
+        --shadow-lvl2: 2px 2px 4px #0003,
+                       0 0 6px #0003;
+        --shadow-lvl3: 3px 3px 6px #0003,
+                       0 0 9px #0003;
+    }
+    .card-red {
+        --fg-color: var(--red);
+        --bg-color: #383933;
+        --highlight-color: #7f2148;
+    }
+    .card-green {
+        --fg-color: var(--green);
+        --bg-color: #383933;
+        --highlight-color: #596c26;
+    }
+    .card-blue {
+        --fg-color: var(--blue);
+        --bg-color: #383933;
+        --highlight-color: #5b4d92;
+    }
+    html, body {
+        background: #282923;
+    }
+
+    h1, .game-over-text {
+        color: #383933;
+        -webkit-text-stroke: .033em #686963;
+    }
+    .material, button.material {
+        background-color: #383933;
+    }
+
+    @media (any-hover) {
+        button.material:not(:disabled):hover {
+            background: #287c88;
+            color: #78dce8;
+        }
+    }
+    button.material:not(:disabled):active,
+    .material.selected {
+        background: #287c88;
+        color: #78dce8;
+    }
+    .material:disabled {
+        color: #686963;
+    }
+    .material input {
+        box-shadow: 0 4px 0 -2px black;
+    }
+
+    #cards .card {
+        box-shadow: var(--shadow-lvl1);
+    }
+}
