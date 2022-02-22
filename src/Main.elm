@@ -3,20 +3,18 @@ port module Main exposing (..)
 import Array exposing (Array)
 import Browser
 import Browser.Dom as Dom
-import Browser.Events exposing (onResize)
-import Dict exposing (Dict)
+import Browser.Events as Events
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
-import Html.Lazy exposing (lazy, lazy2, lazy3)
-import Json.Decode as JD
+import Html.Lazy exposing (lazy3)
 import Json.Encode as JE
 import Random
 import Random.List exposing (shuffle, choose)
 import Set exposing (Set)
 import Svg
 import Svg.Attributes as SvgA
-import Task exposing (Task)
+import Task
 import Time
 
 import Array.Extra as Array
@@ -24,6 +22,7 @@ import FontAwesome.Icon as FA
 import FontAwesome.Regular as FA
 import List.Extra as List
 
+banner : String
 banner = """             Welcome to
            ┌───┬───┬─────┬┐
            │ ──┤ ─┬┴─┐ ┌┬┘│
@@ -56,6 +55,7 @@ type alias Player =
   , blocked : Bool
   }
 
+newPlayer : String -> Player
 newPlayer name =
   Player name 0 False
 
@@ -92,7 +92,7 @@ generateDeck =
     toBase base number =
       case number // base of
         0 -> [ number ]
-        x -> modBy base number :: toBase base (number // base)
+        _ -> modBy base number :: toBase base (number // base)
 
     fromBase : Int -> List Int -> Int
     fromBase base =
@@ -135,7 +135,9 @@ checkTriple ids =
 
 port consoleLogPort : JE.Value -> Cmd msg
 port consoleErrPort : JE.Value -> Cmd msg
+consoleLog : String -> Cmd msg
 consoleLog = JE.string >> consoleLogPort
+consoleErr : String -> Cmd msg
 consoleErr = JE.string >> consoleErrPort
 
 port playerNamesPort : JE.Value -> Cmd msg
@@ -157,7 +159,7 @@ main =
     { init = init
     , update = update
     , view = \model -> { title = "SET!", body = view model }
-    , subscriptions = \_ -> onResize (\_ _ -> WindowResize)
+    , subscriptions = \_ -> Events.onResize (\_ _ -> WindowResize)
     }
 
 msg2cmd : Msg -> Cmd Msg
@@ -207,7 +209,7 @@ type Msg
   | StoreGameResult Time.Posix
 
 update : Msg -> Model -> (Model, Cmd Msg)
-update msg ({ players, cards, deck, selectedCards, hintCards } as model) =
+update msg ({ players, selectedCards, hintCards } as model) =
   case msg of
     NoOp ->
       ( model, Cmd.none )
@@ -352,7 +354,7 @@ makeGuess playerIndex ({players, cards, deck, selectedCards} as model) =
         )
 
 checkImpossible : Model -> (Model, Cmd Msg)
-checkImpossible ({ deck, cards, validTriple, hintCards } as model) =
+checkImpossible ({ deck, validTriple, hintCards } as model) =
   Tuple.mapFirst unblockAllPlayers
     <| case validTriple of
       Nothing ->
@@ -480,7 +482,7 @@ viewPlayerInput index player canRemove =
     [ class "material player player-input"
     --, onClick (Focus inputId)
     ]
-    <| [ input
+    <| (input
           [ id inputId
           , class "player-name-input"
           , placeholder "Player Name"
@@ -488,7 +490,7 @@ viewPlayerInput index player canRemove =
           , onInput (SetPlayername index)
           , onSubmit (StartGame)
           ] []
-    ] ++ if canRemove then
+     ) :: if canRemove then
         [ button [ class "remove-player-button", onClick (RemovePlayer index) ]
             [ text "✕" ]  -- ✖
         ]
@@ -593,8 +595,11 @@ viewInfo { gameState, deck, hintCards } =
 
 -- SVG VIEW
 
+symbolWidth : number
 symbolWidth = 120
+symbolHeight : number
 symbolHeight = 50
+symbolPadding : number
 symbolPadding = 10
 
 shape2svg : Shape -> Pattern -> Color -> Svg.Svg Msg
