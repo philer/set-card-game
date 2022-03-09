@@ -1,4 +1,4 @@
-port module Main exposing (..)
+port module Main exposing (main)
 
 import Array exposing (Array)
 import Array.Extra as Array
@@ -19,7 +19,6 @@ import Set exposing (Set)
 import Svg
 import Svg.Attributes as SvgA
 import Task
-import Time
 
 
 banner : String
@@ -124,11 +123,6 @@ type alias Count =
     Int
 
 
-counts : Array Count
-counts =
-    Array.fromList [ 1, 2, 3 ]
-
-
 getCount : Card -> Count
 getCount card =
     (card // 1000 |> modBy 10) + 1
@@ -194,14 +188,6 @@ storePlayerNames { players } =
     JE.array (.name >> JE.string) players |> playerNamesPort
 
 
-port gameResultPort : JE.Value -> Cmd msg
-
-
-storeGameResult : Cmd Msg
-storeGameResult =
-    Task.perform StoreGameResult Time.now
-
-
 
 -- MAIN
 
@@ -214,11 +200,6 @@ main =
         , view = \model -> { title = "SET!", body = view model }
         , subscriptions = \_ -> Events.onResize (\_ _ -> WindowResize)
         }
-
-
-msg2cmd : Msg -> Cmd Msg
-msg2cmd msg =
-    Task.succeed msg |> Task.perform identity
 
 
 updateCardSize : Cmd Msg
@@ -254,7 +235,6 @@ type Msg
       -- game state
     | NewGame
     | RequestStartGame
-    | StoreGameResult Time.Posix
       -- game progress
     | StartGame (List Card)
     | RequestHint
@@ -335,19 +315,6 @@ update msg ({ players } as model) =
                 , Random.generate StartGame (shuffle generateDeck)
                 , updateCardSize
                 ]
-            )
-
-        StoreGameResult timestamp ->
-            ( model
-            , gameResultPort <|
-                JE.object
-                    [ ( "timestamp", timestamp |> Time.posixToMillis |> JE.int )
-                    , ( "players"
-                      , players
-                            |> Array.mapToList (\{ name, score } -> ( name, JE.int score ))
-                            |> JE.object
-                      )
-                    ]
             )
 
         StartGame deck ->
@@ -822,23 +789,6 @@ rectangle =
         , SvgA.width <| String.fromFloat symbolWidth
         , SvgA.height <| String.fromFloat symbolHeight
         ]
-        []
-
-
-diamond : Svg.Svg Msg
-diamond =
-    let
-        ( dx, dy ) =
-            ( symbolWidth / 2, symbolHeight / 2 )
-
-        coordinates =
-            [ symbolPadding + dx, symbolPadding, dx, dy, -dx, dy, -dx, -dy ]
-
-        d =
-            "m" ++ (String.join " " <| List.map String.fromFloat coordinates) ++ "z"
-    in
-    Svg.path
-        [ SvgA.id "shape-diamond", SvgA.class "shape", SvgA.d d ]
         []
 
 

@@ -22,14 +22,6 @@
         localStorage.setItem(playerNamesKey, JSON.stringify(data))
       });
 
-      const gameResultsKey = LOCAL_STORAGE_PREFIX + ".game-results";
-      app.ports.gameResultPort.subscribe(data => {
-        const resultsJson = localStorage.getItem(gameResultsKey);
-        const results = resultsJson ? JSON.parse(resultsJson) : []
-        results.push(data)
-        localStorage.setItem(gameResultsKey, JSON.stringify(results));
-      });
-
       app.ports.consoleLogPort.subscribe(console.log);
       app.ports.consoleErrPort.subscribe(console.error);
     </script>
