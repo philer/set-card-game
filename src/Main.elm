@@ -48,8 +48,8 @@ type alias GameState =
     { deck : List Card
     , cards : List Card
     , validTriple : List Card
-    , selectedCards : List CardId
-    , hintCards : List CardId
+    , selectedCards : List Card
+    , hintCards : List Card
     }
 
 
@@ -71,7 +71,7 @@ newPlayer name =
     Player name 0 False
 
 
-type alias CardId =
+type alias Card =
     Int
 
 
@@ -84,6 +84,12 @@ shapes =
     Array.fromList [ "rectangle", "tilde", "ellipse" ]
 
 
+getShape : Card -> Shape
+getShape card =
+    Array.get (modBy 10 card) shapes
+        |> Maybe.withDefault "INVALID_SHAPE"
+
+
 type alias Pattern =
     String
 
@@ -91,6 +97,12 @@ type alias Pattern =
 patterns : Array Pattern
 patterns =
     Array.fromList [ "full", "half", "empty" ]
+
+
+getPattern : Card -> Pattern
+getPattern card =
+    Array.get (card // 10 |> modBy 10) patterns
+        |> Maybe.withDefault "INVALID_PATTERN"
 
 
 type alias Color =
@@ -102,6 +114,12 @@ colors =
     Array.fromList [ "red", "green", "blue" ]
 
 
+getColor : Card -> Color
+getColor card =
+    Array.get (card // 100 |> modBy 10) colors
+        |> Maybe.withDefault "INVALID_COLORS"
+
+
 type alias Count =
     Int
 
@@ -111,13 +129,9 @@ counts =
     Array.fromList [ 1, 2, 3 ]
 
 
-type alias Card =
-    { id : CardId
-    , shape : Shape
-    , pattern : Pattern
-    , color : Color
-    , count : Count
-    }
+getCount : Card -> Count
+getCount card =
+    (card // 1000 |> modBy 10) + 1
 
 
 generateDeck : List Card
@@ -135,43 +149,21 @@ generateDeck =
         fromBase : Int -> List Int -> Int
         fromBase base =
             List.indexedFoldl (\place digit n -> n + digit * base ^ place) 0
-
-        pad : a -> Int -> List a -> List a
-        pad item count xs =
-            xs ++ List.repeat (count - List.length xs) item
-
-        buildCard : Int -> Card
-        buildCard index =
-            let
-                idxs =
-                    toBase 3 index
-            in
-            case pad 0 4 idxs of
-                shapeIndex :: patternIndex :: colorIndex :: countIndex :: [] ->
-                    Card
-                        (fromBase 10 idxs)
-                        (Maybe.withDefault "INVALID" <| Array.get shapeIndex shapes)
-                        (Maybe.withDefault "INVALID" <| Array.get patternIndex patterns)
-                        (Maybe.withDefault "INVALID" <| Array.get colorIndex colors)
-                        (Maybe.withDefault -1 <| Array.get countIndex counts)
-
-                _ ->
-                    -- should be impossible
-                    Card -1 "INVALID" "INVALID" "INVALID" -1
     in
-    List.map buildCard <| List.range 0 80
+    List.range 0 80
+        |> List.map (toBase 3 >> fromBase 10)
 
 
 {-| 0000, 0003, 0006, 0030, ..., 6666
 -}
-validCardTripleSums : Set CardId
-validCardTripleSums =
-    Set.fromList (List.map (\card -> card.id * 3) generateDeck)
+generateValidTripleSums : Set Card
+generateValidTripleSums =
+    Set.fromList (List.map (\card -> card * 3) generateDeck)
 
 
-checkTriple : List CardId -> Bool
-checkTriple ids =
-    Set.member (List.sum ids) validCardTripleSums
+checkTriple : List Card -> Bool
+checkTriple cards =
+    Set.member (List.sum cards) generateValidTripleSums
 
 
 
@@ -266,8 +258,8 @@ type Msg
       -- game progress
     | StartGame (List Card)
     | RequestHint
-    | AddHint CardId
-    | SelectCard CardId
+    | AddHint Card
+    | SelectCard Card
     | MakeGuess Int
 
 
@@ -386,27 +378,27 @@ update msg ({ players } as model) =
                     requestHint gameState
             )
 
-        AddHint cardId ->
+        AddHint card ->
             model
                 |> updateStartedGame
                     (\({ selectedCards, hintCards } as gameState) ->
                         { gameState
-                            | hintCards = cardId :: hintCards
-                            , selectedCards = cardId :: hintCards ++ selectedCards |> List.unique |> List.take 3
+                            | hintCards = card :: hintCards
+                            , selectedCards = card :: hintCards ++ selectedCards |> List.unique |> List.take 3
                         }
                     )
 
-        SelectCard cardId ->
+        SelectCard card ->
             model
                 |> updateStartedGame
                     (\({ selectedCards } as gameState) ->
                         { gameState
                             | selectedCards =
-                                if List.member cardId selectedCards then
-                                    List.remove cardId selectedCards
+                                if List.member card selectedCards then
+                                    List.remove card selectedCards
 
                                 else
-                                    List.take 3 (cardId :: selectedCards)
+                                    List.take 3 (card :: selectedCards)
                         }
                     )
 
@@ -472,7 +464,7 @@ makeGuess playerIndex ({ gameStatus } as model) =
 removeSelectedCards : GameState -> GameState
 removeSelectedCards ({ cards, selectedCards } as gameState) =
     { gameState
-        | cards = List.filter (\card -> not <| List.member card.id selectedCards) cards
+        | cards = List.filter (\card -> not <| List.member card selectedCards) cards
         , selectedCards = []
         , hintCards = []
     }
@@ -483,7 +475,7 @@ replaceSelectedCards ({ selectedCards } as gameState) =
     let
         replace : Card -> ( List Card, List Card ) -> ( List Card, List Card )
         replace card ( newDeck, newCards ) =
-            if List.member card.id selectedCards then
+            if List.member card selectedCards then
                 case newDeck of
                     newCard :: remainingDeck ->
                         ( remainingDeck, newCard :: newCards )
@@ -524,17 +516,17 @@ ensureValidTriple ({ cards, deck } as gameState) =
 
 requestHint : GameState -> Cmd Msg
 requestHint { validTriple, hintCards } =
-    List.map .id validTriple
-        |> List.filter (\cardId -> not <| List.member cardId hintCards)
+    validTriple
+        |> List.filter (\card -> not <| List.member card hintCards)
         |> choose
         |> Random.generate
-            (\( maybeHintCardId, _ ) ->
-                case maybeHintCardId of
+            (\( maybeHintCard, _ ) ->
+                case maybeHintCard of
                     Nothing ->
                         NoOp
 
-                    Just hintCardId ->
-                        AddHint hintCardId
+                    Just hintCard ->
+                        AddHint hintCard
             )
 
 
@@ -580,11 +572,9 @@ distinctCombinations len items =
 
 
 findValidTriple : List Card -> Maybe (List Card)
-findValidTriple cards =
-    List.find
-        (List.map .id >> checkTriple)
-        -- TODO optimization: lazy
-        (distinctCombinations 3 cards)
+findValidTriple =
+    -- TODO optimization: lazy
+    List.find checkTriple << distinctCombinations 3
 
 
 
@@ -684,21 +674,21 @@ viewCards { gameStatus, cardSize } =
     <|
         case gameStatus of
             Preparation ->
-                [ viewCard_ (Card 2 "ellipse" "full" "red" 1) False False
-                , viewCard_ (Card 1111 "tilde" "half" "green" 2) False False
-                , viewCard_ (Card 2220 "rectangle" "empty" "blue" 3) False False
+                [ viewCard_ 2 False False
+                , viewCard_ 1111 False False
+                , viewCard_ 2220 False False
                 , button [ class "material start-button", onClick RequestStartGame ]
                     [ text "Start" ]
                 ]
 
             Started { cards, selectedCards, hintCards } ->
                 List.map
-                    (\c ->
+                    (\card ->
                         lazy3
                             viewCard_
-                            c
-                            (List.member c.id selectedCards)
-                            (List.member c.id hintCards)
+                            card
+                            (List.member card selectedCards)
+                            (List.member card hintCards)
                     )
                     cards
 
@@ -713,7 +703,11 @@ viewCards { gameStatus, cardSize } =
 
 
 viewCard : ( Float, Float ) -> Card -> Bool -> Bool -> Html Msg
-viewCard ( width, height ) { id, shape, pattern, color, count } selected highlighted =
+viewCard ( width, height ) card selected highlighted =
+    let
+        color =
+            getColor card
+    in
     button
         [ classList
             [ ( "material", True )
@@ -723,10 +717,10 @@ viewCard ( width, height ) { id, shape, pattern, color, count } selected highlig
             ]
         , style "width" <| String.fromFloat width ++ "px"
         , style "height" <| String.fromFloat height ++ "px"
-        , onClick <| SelectCard id
+        , onClick <| SelectCard card
         ]
     <|
-        (List.repeat count <| lazy3 shape2svg shape pattern color)
+        (List.repeat (getCount card) <| lazy3 shape2svg (getShape card) (getPattern card) color)
             ++ (if highlighted then
                     [ FA.viewIcon FA.smileWink ]
 
