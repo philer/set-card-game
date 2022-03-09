@@ -38,21 +38,25 @@ https://github.com/philer/set-card-game"""
 
 
 type alias Model =
-    { gameState : GameState
+    { gameStatus : GameStatus
     , players : Array Player
-    , deck : List Card
-    , cards : List Card
-    , selectedCards : List CardId
-    , hintCards : List CardId
-    , validTriple : Maybe (List Card)
     , cardSize : ( Float, Float )
     }
 
 
-type GameState
+type alias GameState =
+    { deck : List Card
+    , cards : List Card
+    , validTriple : List Card
+    , selectedCards : List CardId
+    , hintCards : List CardId
+    }
+
+
+type GameStatus
     = Preparation
-    | Started
-    | Over
+    | Started GameState
+    | Over (List Card)
 
 
 type alias Player =
@@ -152,9 +156,8 @@ generateDeck =
                         (Maybe.withDefault -1 <| Array.get countIndex counts)
 
                 _ ->
+                    -- should be impossible
                     Card -1 "INVALID" "INVALID" "INVALID" -1
-
-        -- should be impossible
     in
     List.map buildCard <| List.range 0 80
 
@@ -237,13 +240,8 @@ init flags =
         playerNames =
             Maybe.withDefault (Array.fromList [ "Player 1", "Player 2" ]) flags
     in
-    ( { gameState = Preparation
+    ( { gameStatus = Preparation
       , players = Array.map newPlayer playerNames
-      , deck = []
-      , cards = []
-      , selectedCards = []
-      , hintCards = []
-      , validTriple = Nothing
       , cardSize = ( 200, 300 ) -- arbitrary value
       }
     , Cmd.batch
@@ -257,21 +255,24 @@ type Msg
     = NoOp
     | WindowResize
     | SetCardSize (Result Dom.Error Dom.Element)
-    | NewGame
+      -- player management
     | AddPlayer
     | RemovePlayer Int
     | SetPlayername Int String
-    | StartGame
-    | SetDeck (List Card)
-    | CheckImpossible
+      -- game state
+    | NewGame
+    | RequestStartGame
+    | StoreGameResult Time.Posix
+      -- game progress
+    | StartGame (List Card)
+    | RequestHint
     | AddHint CardId
     | SelectCard CardId
     | MakeGuess Int
-    | StoreGameResult Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg ({ players, selectedCards, hintCards } as model) =
+update msg ({ players } as model) =
     case msg of
         NoOp ->
             ( model, Cmd.none )
@@ -310,17 +311,6 @@ update msg ({ players, selectedCards, hintCards } as model) =
             , Cmd.none
             )
 
-        NewGame ->
-            ( { model
-                | gameState = Preparation
-                , players = Array.map (.name >> newPlayer) players
-                , selectedCards = []
-                , hintCards = []
-                , validTriple = Nothing
-              }
-            , Cmd.none
-            )
-
         AddPlayer ->
             let
                 name =
@@ -336,57 +326,24 @@ update msg ({ players, selectedCards, hintCards } as model) =
             )
 
         SetPlayername index name ->
-            case Array.get index players of
-                Just player ->
-                    ( { model
-                        | players = Array.set index { player | name = name } players
-                      }
-                    , Cmd.none
-                    )
+            updatePlayerAt (\p -> { p | name = name }) index model
 
-                Nothing ->
-                    ( model, Cmd.none )
+        NewGame ->
+            ( { model
+                | gameStatus = Preparation
+                , players = Array.map (.name >> newPlayer) players
+              }
+            , Cmd.none
+            )
 
-        StartGame ->
-            ( { model | gameState = Started }
+        RequestStartGame ->
+            ( model
             , Cmd.batch
                 [ storePlayerNames model
-                , Random.generate SetDeck (shuffle generateDeck)
+                , Random.generate StartGame (shuffle generateDeck)
                 , updateCardSize
                 ]
             )
-
-        SetDeck newDeck ->
-            ( drawCards 12 { model | deck = newDeck, cards = [] }
-            , Cmd.none
-            )
-
-        CheckImpossible ->
-            checkImpossible model
-
-        AddHint cardId ->
-            ( { model
-                | hintCards = cardId :: hintCards
-                , selectedCards =
-                    cardId :: hintCards ++ selectedCards |> List.unique |> List.take 3
-              }
-            , Cmd.none
-            )
-
-        SelectCard cardId ->
-            ( { model
-                | selectedCards =
-                    if List.member cardId selectedCards then
-                        List.remove cardId selectedCards
-
-                    else
-                        List.take 3 (cardId :: selectedCards)
-              }
-            , Cmd.none
-            )
-
-        MakeGuess playerIndex ->
-            makeGuess playerIndex model
 
         StoreGameResult timestamp ->
             ( model
@@ -401,104 +358,128 @@ update msg ({ players, selectedCards, hintCards } as model) =
                     ]
             )
 
-
-makeGuess : Int -> Model -> ( Model, Cmd Msg )
-makeGuess playerIndex ({ players, cards, deck, selectedCards } as model) =
-    if List.length selectedCards < 3 then
-        ( model, Cmd.none )
-
-    else
-        case Array.get playerIndex players of
-            Nothing ->
-                -- error, should not be possible
-                ( model, consoleErr <| "Unknown Player index: " ++ String.fromInt playerIndex )
-
-            Just player ->
-                ( if checkTriple selectedCards then
-                    let
-                        ( newDeck, newCards ) =
-                            if List.length cards <= 12 then
-                                replaceSelectedCards deck selectedCards cards
-
-                            else
-                                ( deck, removeSelectedCards selectedCards cards )
-                    in
-                    unblockAllPlayers
-                        { model
-                            | players =
-                                Array.set
-                                    playerIndex
-                                    { player | score = player.score + 3 }
-                                    players
-                            , deck = newDeck
-                            , cards = newCards
+        StartGame deck ->
+            ( { model
+                | gameStatus =
+                    ensureValidTriple <|
+                        drawCards 12 <|
+                            { deck = deck
+                            , cards = []
                             , selectedCards = []
                             , hintCards = []
-                            , validTriple = findValidTriple newCards
+                            , validTriple = []
+                            }
+              }
+            , Cmd.none
+            )
+
+        RequestHint ->
+            ( model
+            , case model.gameStatus of
+                Preparation ->
+                    consoleErr "Game has not started yet."
+
+                Over _ ->
+                    consoleErr "Game is already over."
+
+                Started gameState ->
+                    requestHint gameState
+            )
+
+        AddHint cardId ->
+            model
+                |> updateStartedGame
+                    (\({ selectedCards, hintCards } as gameState) ->
+                        { gameState
+                            | hintCards = cardId :: hintCards
+                            , selectedCards = cardId :: hintCards ++ selectedCards |> List.unique |> List.take 3
                         }
+                    )
 
-                  else
-                    checkBlockedPlayers
-                        { model
-                            | players =
-                                Array.set
-                                    playerIndex
-                                    { player | blocked = True }
-                                    players
-                            , selectedCards = []
+        SelectCard cardId ->
+            model
+                |> updateStartedGame
+                    (\({ selectedCards } as gameState) ->
+                        { gameState
+                            | selectedCards =
+                                if List.member cardId selectedCards then
+                                    List.remove cardId selectedCards
+
+                                else
+                                    List.take 3 (cardId :: selectedCards)
                         }
-                , Cmd.none
-                )
+                    )
+
+        MakeGuess playerIndex ->
+            makeGuess playerIndex model
 
 
-checkImpossible : Model -> ( Model, Cmd Msg )
-checkImpossible ({ deck, validTriple, hintCards } as model) =
-    Tuple.mapFirst unblockAllPlayers <|
-        case validTriple of
-            Nothing ->
-                if List.length deck == 0 then
-                    ( { model | gameState = Over }, storeGameResult )
+updatePlayerAt : (Player -> Player) -> Int -> Model -> ( Model, Cmd Msg )
+updatePlayerAt updatePlayer index ({ players } as model) =
+    case Array.get index players of
+        Nothing ->
+            ( model, consoleErr <| "Unknown Player index: " ++ String.fromInt index )
 
-                else
-                    ( drawCards 3 model, Cmd.none )
-
-            Just triple ->
-                ( model
-                , List.map .id triple
-                    |> List.filter (\cardId -> not <| List.member cardId hintCards)
-                    |> choose
-                    |> Random.generate
-                        (\( maybeHintCardId, _ ) ->
-                            case maybeHintCardId of
-                                Nothing ->
-                                    NoOp
-
-                                Just hintCardId ->
-                                    AddHint hintCardId
-                        )
-                )
+        Just player ->
+            ( { model | players = Array.set index (updatePlayer player) players }, Cmd.none )
 
 
-drawCards : Int -> Model -> Model
-drawCards count ({ deck, cards } as model) =
-    let
-        newCards =
-            cards ++ List.take count deck
-    in
-    { model
-        | deck = List.drop count deck
-        , cards = newCards
-        , validTriple = findValidTriple newCards
+updateStartedGame : (GameState -> GameState) -> Model -> ( Model, Cmd Msg )
+updateStartedGame updateGameState ({ gameStatus } as model) =
+    case gameStatus of
+        Preparation ->
+            ( model, consoleErr "Game has not started yet." )
+
+        Over _ ->
+            ( model, consoleErr "Game is already over." )
+
+        Started gameState ->
+            ( { model | gameStatus = Started <| updateGameState gameState }, Cmd.none )
+
+
+makeGuess : Int -> Model -> ( Model, Cmd Msg )
+makeGuess playerIndex ({ gameStatus } as model) =
+    case gameStatus of
+        Preparation ->
+            ( model, consoleErr "Game has not started yet." )
+
+        Over _ ->
+            ( model, consoleErr "Game is already over." )
+
+        Started ({ cards, selectedCards } as gameState) ->
+            if checkTriple selectedCards then
+                let
+                    newGameState =
+                        if List.length cards > 12 then
+                            removeSelectedCards gameState
+
+                        else
+                            replaceSelectedCards gameState
+
+                    newGameStatus =
+                        ensureValidTriple { newGameState | selectedCards = [], hintCards = [] }
+                in
+                { model | gameStatus = newGameStatus }
+                    |> unblockAllPlayers
+                    |> updatePlayerAt (\p -> { p | score = p.score + 3 }) playerIndex
+
+            else
+                { model | gameStatus = Started { gameState | selectedCards = [] } }
+                    |> checkBlockedPlayers
+                    |> updatePlayerAt (\p -> { p | blocked = True }) playerIndex
+
+
+removeSelectedCards : GameState -> GameState
+removeSelectedCards ({ cards, selectedCards } as gameState) =
+    { gameState
+        | cards = List.filter (\card -> not <| List.member card.id selectedCards) cards
+        , selectedCards = []
+        , hintCards = []
     }
 
 
-removeSelectedCards : List CardId -> List Card -> List Card
-removeSelectedCards selectedCards =
-    List.filter (\card -> not <| List.member card.id selectedCards)
-
-
-replaceSelectedCards : List Card -> List CardId -> List Card -> ( List Card, List Card )
-replaceSelectedCards deck selectedCards =
+replaceSelectedCards : GameState -> GameState
+replaceSelectedCards ({ selectedCards } as gameState) =
     let
         replace : Card -> ( List Card, List Card ) -> ( List Card, List Card )
         replace card ( newDeck, newCards ) =
@@ -512,8 +493,49 @@ replaceSelectedCards deck selectedCards =
 
             else
                 ( newDeck, card :: newCards )
+
+        ( deck, cards ) =
+            List.foldr replace ( gameState.deck, [] ) gameState.cards
     in
-    List.foldr replace ( deck, [] )
+    { gameState | deck = deck, cards = cards }
+
+
+drawCards : Int -> GameState -> GameState
+drawCards count ({ deck, cards } as gameState) =
+    { gameState
+        | deck = List.drop count deck
+        , cards = cards ++ List.take count deck
+    }
+
+
+ensureValidTriple : GameState -> GameStatus
+ensureValidTriple ({ cards, deck } as gameState) =
+    case findValidTriple cards of
+        Just validTriple ->
+            Started { gameState | validTriple = validTriple }
+
+        Nothing ->
+            if List.length deck == 0 then
+                Over cards
+
+            else
+                ensureValidTriple <| drawCards 3 gameState
+
+
+requestHint : GameState -> Cmd Msg
+requestHint { validTriple, hintCards } =
+    List.map .id validTriple
+        |> List.filter (\cardId -> not <| List.member cardId hintCards)
+        |> choose
+        |> Random.generate
+            (\( maybeHintCardId, _ ) ->
+                case maybeHintCardId of
+                    Nothing ->
+                        NoOp
+
+                    Just hintCardId ->
+                        AddHint hintCardId
+            )
 
 
 unblockAllPlayers : Model -> Model
@@ -580,9 +602,9 @@ view model =
 
 
 viewPlayers : Model -> Html Msg
-viewPlayers { gameState, players } =
+viewPlayers { gameStatus, players } =
     div [ id "players" ] <|
-        if gameState == Preparation then
+        if gameStatus == Preparation then
             let
                 canRemove =
                     Array.length players > 1
@@ -604,10 +626,7 @@ viewPlayerInput index player canRemove =
             "player-name-input-" ++ String.fromInt index
     in
     div
-        [ class "material player player-input"
-
-        --, onClick (Focus inputId)
-        ]
+        [ class "material player player-input" ]
     <|
         input
             [ id inputId
@@ -615,15 +634,11 @@ viewPlayerInput index player canRemove =
             , placeholder "Player Name"
             , value player.name
             , onInput (SetPlayername index)
-            , onSubmit StartGame
+            , onSubmit RequestStartGame
             ]
             []
             :: (if canRemove then
-                    [ button [ class "remove-player-button", onClick (RemovePlayer index) ]
-                        [ text "✕" ]
-
-                    -- ✖
-                    ]
+                    [ button [ class "remove-player-button", onClick (RemovePlayer index) ] [ text "✕" ] ]
 
                 else
                     []
@@ -648,30 +663,35 @@ viewPlayer index { name, score, blocked } =
 
 
 viewCards : Model -> Html Msg
-viewCards { gameState, cards, selectedCards, cardSize, hintCards } =
+viewCards { gameStatus, cardSize } =
     let
         viewCard_ =
             viewCard cardSize
     in
     div
         [ id "cards"
-        , classList
-            [ ( "game-preparation", gameState == Preparation )
-            , ( "game-started", gameState == Started )
-            , ( "game-over", gameState == Over )
-            ]
+        , class <|
+            case gameStatus of
+                Preparation ->
+                    "game-preparation"
+
+                Started _ ->
+                    "game-started"
+
+                Over _ ->
+                    "game-over"
         ]
     <|
-        case gameState of
+        case gameStatus of
             Preparation ->
                 [ viewCard_ (Card 2 "ellipse" "full" "red" 1) False False
                 , viewCard_ (Card 1111 "tilde" "half" "green" 2) False False
                 , viewCard_ (Card 2220 "rectangle" "empty" "blue" 3) False False
-                , button [ class "material start-button", onClick StartGame ]
+                , button [ class "material start-button", onClick RequestStartGame ]
                     [ text "Start" ]
                 ]
 
-            Started ->
+            Started { cards, selectedCards, hintCards } ->
                 List.map
                     (\c ->
                         lazy3
@@ -682,7 +702,7 @@ viewCards { gameState, cards, selectedCards, cardSize, hintCards } =
                     )
                     cards
 
-            Over ->
+            Over cards ->
                 List.map (\c -> viewCard_ c False False) cards
                     ++ [ div [ class "game-over-screen" ]
                             [ div [ class "game-over-text" ] [ text "Game Over" ]
@@ -716,37 +736,28 @@ viewCard ( width, height ) { id, shape, pattern, color, count } selected highlig
 
 
 viewInfo : Model -> Html Msg
-viewInfo { gameState, deck, hintCards } =
-    case gameState of
-        Preparation ->
-            text ""
-
-        _ ->
+viewInfo { gameStatus } =
+    case gameStatus of
+        Started { deck, hintCards } ->
             div [ id "info" ]
                 [ div [ class "info-text" ]
                     [ text <| (List.length deck |> String.fromInt) ++ " cards left" ]
                 , button
                     [ class "material"
-                    , disabled (List.length hintCards >= 3 || gameState == Over)
-                    , onClick CheckImpossible
+                    , disabled <| List.length hintCards >= 3
+                    , onClick RequestHint
                     ]
                     [ text <|
-                        if gameState == Over then
-                            "Impossible."
-
-                        else if List.length hintCards == 0 then
-                            "Impossible?"
+                        if List.length hintCards == 0 then
+                            "Hint"
 
                         else
-                            "Possible!"
-                                ++ (if List.length hintCards < 3 then
-                                        " (Next Hint)"
-
-                                    else
-                                        ""
-                                   )
+                            "Next Hint"
                     ]
                 ]
+
+        _ ->
+            text ""
 
 
 
