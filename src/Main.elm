@@ -157,7 +157,7 @@ generateValidTripleSums =
 
 checkTriple : List Card -> Bool
 checkTriple cards =
-    Set.member (List.sum cards) generateValidTripleSums
+    List.length cards == 3 && Set.member (List.sum cards) generateValidTripleSums
 
 
 
@@ -561,23 +561,27 @@ view model =
 viewPlayers : Model -> Html Msg
 viewPlayers { gameStatus, players } =
     div [ id "players" ] <|
-        if gameStatus == Preparation then
-            let
-                canRemove =
-                    Array.length players > 1
-            in
-            Array.indexedMapToList (\i p -> viewPlayerInput i p canRemove) players
-                ++ [ button
-                        [ class "material add-player-button", onClick AddPlayer ]
-                        [ text "+" ]
-                   ]
+        case gameStatus of
+            Preparation ->
+                let
+                    canRemove =
+                        Array.length players > 1
+                in
+                Array.indexedMapToList (viewPlayerInput canRemove) players
+                    ++ [ button
+                            [ class "material add-player-button", onClick AddPlayer ]
+                            [ text "+" ]
+                       ]
 
-        else
-            Array.indexedMapToList viewPlayer players
+            Started { selectedCards } ->
+                Array.indexedMapToList (viewPlayer <| List.length selectedCards == 3) players
+
+            Over _ ->
+                Array.indexedMapToList (viewPlayer False) players
 
 
-viewPlayerInput : Int -> Player -> Bool -> Html Msg
-viewPlayerInput index player canRemove =
+viewPlayerInput : Bool -> Int -> Player -> Html Msg
+viewPlayerInput canRemove index player =
     let
         inputId =
             "player-name-input-" ++ String.fromInt index
@@ -602,13 +606,13 @@ viewPlayerInput index player canRemove =
                )
 
 
-viewPlayer : Int -> Player -> Html Msg
-viewPlayer index { name, score, blocked } =
+viewPlayer : Bool -> Int -> Player -> Html Msg
+viewPlayer canGuess index { name, score, blocked } =
     button
         [ class "material player"
         , disabled blocked
         , onClick <|
-            if blocked then
+            if not canGuess || blocked then
                 NoOp
 
             else
