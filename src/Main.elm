@@ -424,8 +424,8 @@ makeGuess playerIndex ({ gameStatus } as model) =
 
             else
                 { model | gameStatus = Started { gameState | selectedCards = [] } }
-                    |> checkBlockedPlayers
                     |> updatePlayerAt (\p -> { p | blocked = True }) playerIndex
+                    |> Tuple.mapFirst checkBlockedPlayers
 
 
 removeSelectedCards : GameState -> GameState
