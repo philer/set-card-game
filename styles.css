@@ -98,7 +98,8 @@ body {
         [top title] max-content
         [title-end players] 1fr
         [players-end info] max-content
-        [info-end bottom];
+        [info-end rules-button] max-content
+        [rules-button-end bottom];
     grid-column-gap: 1rem;
     padding: 1rem;
     align-items: stretch;
@@ -123,6 +124,10 @@ h1 {
     grid-area: info / sidebar / info-end / sidebar-end;
     display: flex;
     flex-direction: column;
+}
+#rules-button {
+    grid-area: rules-button / sidebar / rules-button-end / sidebar-end;
+    padding-top: 1em;
 }
 #cards {
     grid-area: top / main / bottom / main-end;
@@ -222,6 +227,51 @@ button.remove-player-button {
     padding-left: .5rem;
 }
 
+.modal {
+    z-index: 100;
+    position: fixed;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #0005;
+}
+.modal > .material {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    font-size: 16px;
+    padding: 2em;
+    margin: 0;
+    line-height: 1.4em;
+    max-height: 90%;
+}
+.modal header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 2em;
+}
+.modal header h2 {
+    margin: 0;
+}
+.modal header  .close-button {
+    font-size: 2em;
+}
+
+.modal > .material > div {
+    margin-top: 2em;
+    height: 100%;
+    max-height: 100%;
+    overflow: auto;
+}
+.modal p, ul {
+    margin: .5em 0;
+}
+.modal h4 {
+    margin: 1em 0 0 0;
+}
 
 #cards {
     overflow: hidden;
@@ -300,11 +350,13 @@ button.remove-player-button {
     animation: .5s appear forwards;
 }
 
-#cards .card {
+body .card {
     --card-inner-glow: inset 0 0 4vmin;
     --card-inner-border: inset 0 0 0 1vmin;
     margin: 0;
-    padding: 10%;
+    height: 1em;
+    width: .667em;
+    padding: .0667em;
 
     position: relative;
 
@@ -329,6 +381,15 @@ button.remove-player-button {
     background: var(--bg-color);
     box-shadow: var(--shadow-lvl1),
                 var(--card-inner-border) var(--highlight-color);
+}
+.example {
+    display: flex;
+    gap: .5em;
+    margin: .5em 0;
+}
+.example ul {
+    list-style-type: none;
+    padding-left: 1em;
 }
 .card .svg-inline--fa {
     position: absolute;

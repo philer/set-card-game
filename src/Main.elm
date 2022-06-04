@@ -10,7 +10,7 @@ import FontAwesome.Regular as FA
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
-import Html.Lazy exposing (lazy3)
+import Html.Lazy exposing (lazy3, lazy4)
 import Json.Encode as JE
 import List.Extra as List
 import Random
@@ -39,7 +39,8 @@ https://github.com/philer/set-card-game"""
 type alias Model =
     { gameStatus : GameStatus
     , players : Array Player
-    , cardSize : ( Float, Float )
+    , showRules : Bool
+    , cardSize : Float
     }
 
 
@@ -215,7 +216,8 @@ init flags =
     in
     ( { gameStatus = Preparation
       , players = Array.map newPlayer playerNames
-      , cardSize = ( 200, 300 ) -- arbitrary value
+      , showRules = False
+      , cardSize = 200 -- arbitrary value
       }
     , Cmd.batch
         [ consoleLog banner
@@ -228,6 +230,7 @@ type Msg
     = NoOp
     | WindowResize
     | SetCardSize (Result Dom.Error Dom.Element)
+    | ToggleRules
       -- player management
     | AddPlayer
     | RemovePlayer Int
@@ -273,15 +276,15 @@ update msg ({ players } as model) =
                 gap =
                     w * 0.01
 
-                width =
-                    (w - gap * (columns + 1)) / columns
-
                 height =
                     (h - gap * (rows + 1)) / rows
             in
-            ( { model | cardSize = ( width, height ) }
+            ( { model | cardSize = height }
             , Cmd.none
             )
+
+        ToggleRules ->
+            ( { model | showRules = not model.showRules }, Cmd.none )
 
         AddPlayer ->
             let
@@ -551,6 +554,8 @@ findValidTriple =
 view : Model -> List (Html Msg)
 view model =
     [ h1 [] [ text "SET!" ]
+    , button [ id "rules-button", onClick ToggleRules ] [ text "Rules" ]
+    , viewRules model
     , viewPlayers model
     , viewCards model
     , viewInfo model
@@ -625,10 +630,6 @@ viewPlayer canGuess index { name, score, blocked } =
 
 viewCards : Model -> Html Msg
 viewCards { gameStatus, cardSize } =
-    let
-        viewCard_ =
-            viewCard cardSize
-    in
     div
         [ id "cards"
         , class <|
@@ -645,9 +646,9 @@ viewCards { gameStatus, cardSize } =
     <|
         case gameStatus of
             Preparation ->
-                [ viewCard_ 2 False False
-                , viewCard_ 1111 False False
-                , viewCard_ 2220 False False
+                [ viewCard cardSize 2
+                , viewCard cardSize 1111
+                , viewCard cardSize 2220
                 , button [ class "material start-button", onClick RequestStartGame ]
                     [ text "Start" ]
                 ]
@@ -655,16 +656,17 @@ viewCards { gameStatus, cardSize } =
             Started { cards, selectedCards, hintCards } ->
                 List.map
                     (\card ->
-                        lazy3
-                            viewCard_
-                            card
+                        lazy4
+                            viewCardButton
+                            cardSize
                             (List.member card selectedCards)
                             (List.member card hintCards)
+                            card
                     )
                     cards
 
             Over cards ->
-                List.map (\c -> viewCard_ c False False) cards
+                List.map (viewCard cardSize) cards
                     ++ [ div [ class "game-over-screen" ]
                             [ div [ class "game-over-text" ] [ text "Game Over" ]
                             , button [ class "material new-game-button", onClick NewGame ]
@@ -673,8 +675,26 @@ viewCards { gameStatus, cardSize } =
                        ]
 
 
-viewCard : ( Float, Float ) -> Card -> Bool -> Bool -> Html Msg
-viewCard ( width, height ) card selected highlighted =
+viewCard : Float -> Card -> Html Msg
+viewCard size card =
+    let
+        color =
+            getColor card
+    in
+    div
+        [ classList
+            [ ( "material", True )
+            , ( "card", True )
+            , ( "card-" ++ color, True )
+            ]
+        , style "font-size" <| String.fromFloat size ++ "px"
+        ]
+    <|
+        (List.repeat (getCount card) <| lazy3 shape2svg (getShape card) (getPattern card) color)
+
+
+viewCardButton : Float -> Bool -> Bool -> Card -> Html Msg
+viewCardButton size selected highlighted card =
     let
         color =
             getColor card
@@ -686,8 +706,7 @@ viewCard ( width, height ) card selected highlighted =
             , ( "card-" ++ color, True )
             , ( "selected", selected )
             ]
-        , style "width" <| String.fromFloat width ++ "px"
-        , style "height" <| String.fromFloat height ++ "px"
+        , style "font-size" <| String.fromFloat size ++ "px"
         , onClick <| SelectCard card
         ]
     <|
@@ -723,6 +742,75 @@ viewInfo { gameStatus } =
 
         _ ->
             text ""
+
+
+viewModal : Bool -> msg -> String -> List (Html msg) -> Html msg
+viewModal open close title content =
+    if not open then
+        text ""
+
+    else
+        div [ class "modal" ]
+            [ div [ class "material" ]
+                [ header []
+                    [ h2 [] [ text title ]
+                    , button [ class "close-button", onClick close ] [ text "✕" ]
+                    ]
+                , div [] content
+                ]
+            ]
+
+
+viewRules : Model -> Html Msg
+viewRules { showRules } =
+    let
+        smallCard =
+            viewCard 120
+
+        viewList : List (Html msg) -> Html msg
+        viewList items =
+            ul [] <| List.map (li [] << List.singleton) items
+
+        viewExample : List Card -> List String -> Html Msg
+        viewExample cards explanations =
+            div [ class "example" ] <|
+                List.map smallCard cards
+                    ++ [ viewList <| List.map text explanations ]
+    in
+    viewModal showRules
+        ToggleRules
+        "How to play"
+        [ p [] [ text "Be the first to find a set of three cards that have…" ]
+        , viewList
+            [ text "all the same color or all different colors and"
+            , text "all the same shape or all different shapes and"
+            , text "all the same pattern or all different patterns and"
+            , text "all the same number of symbols or all different numbers of symbols."
+            ]
+        , p [] [ text "When you have found a set, say “SET!”, select the cards and add them to your name." ]
+        , h3 [] [ text "Examples:" ]
+        , h4 [] [ text "✔️ Correct set:" ]
+        , viewExample [ 222, 1222, 2222 ]
+            [ "✔️ All cards have the same color (blue)."
+            , "✔️ All cards have the same shape (oval)."
+            , "✔️ All cards have the same pattern (empty)."
+            , "✔️ All cards have different numbers of symbols (1, 2 and 3)."
+            ]
+        , h4 [] [ text "✔️ Correct set:" ]
+        , viewExample [ 1002, 1111, 1220 ]
+            [ "✔️ All cards have different colors."
+            , "✔️ All cards have different shapes."
+            , "✔️ All cards have different patterns."
+            , "✔️ All cards have the same number of symbols."
+            ]
+        , h4 [] [ text "❌ Wrong set:" ]
+        , viewExample [ 2221, 1111, 101 ]
+            [ "❌ Not all cards have the same color or different colors."
+            , "✔️ All cards have different shapes."
+            , "✔️ All cards have different patterns."
+            , "✔️ All cards have the same number of symbols."
+            ]
+        ]
 
 
 
