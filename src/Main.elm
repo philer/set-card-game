@@ -574,7 +574,7 @@ viewPlayers { gameStatus, players } =
                 in
                 Array.indexedMapToList (viewPlayerInput canRemove) players
                     ++ [ button
-                            [ class "material add-player-button", onClick AddPlayer ]
+                            [ class "paper add-player-button", onClick AddPlayer ]
                             [ text "+" ]
                        ]
 
@@ -592,7 +592,7 @@ viewPlayerInput canRemove index player =
             "player-name-input-" ++ String.fromInt index
     in
     div
-        [ class "material player player-input" ]
+        [ class "paper player player-input" ]
     <|
         input
             [ id inputId
@@ -614,7 +614,7 @@ viewPlayerInput canRemove index player =
 viewPlayer : Bool -> Int -> Player -> Html Msg
 viewPlayer canGuess index { name, score, blocked } =
     button
-        [ class "material player"
+        [ class "paper player"
         , disabled blocked
         , onClick <|
             if not canGuess || blocked then
@@ -649,7 +649,7 @@ viewCards { gameStatus, cardSize } =
                 [ viewCard cardSize 2
                 , viewCard cardSize 1111
                 , viewCard cardSize 2220
-                , button [ class "material start-button", onClick RequestStartGame ]
+                , button [ class "paper start-button", onClick RequestStartGame ]
                     [ text "Start" ]
                 ]
 
@@ -669,7 +669,7 @@ viewCards { gameStatus, cardSize } =
                 List.map (viewCard cardSize) cards
                     ++ [ div [ class "game-over-screen" ]
                             [ div [ class "game-over-text" ] [ text "Game Over" ]
-                            , button [ class "material new-game-button", onClick NewGame ]
+                            , button [ class "paper new-game-button", onClick NewGame ]
                                 [ text "Play Again" ]
                             ]
                        ]
@@ -683,7 +683,7 @@ viewCard size card =
     in
     div
         [ classList
-            [ ( "material", True )
+            [ ( "paper", True )
             , ( "card", True )
             , ( "card-" ++ color, True )
             ]
@@ -701,7 +701,7 @@ viewCardButton size selected highlighted card =
     in
     button
         [ classList
-            [ ( "material", True )
+            [ ( "paper", True )
             , ( "card", True )
             , ( "card-" ++ color, True )
             , ( "selected", selected )
@@ -727,7 +727,7 @@ viewInfo { gameStatus } =
                 [ div [ class "info-text" ]
                     [ text <| (List.length deck |> String.fromInt) ++ " cards left" ]
                 , button
-                    [ class "material"
+                    [ class "paper"
                     , disabled <| List.length hintCards >= 3
                     , onClick RequestHint
                     ]
@@ -751,7 +751,7 @@ viewModal open close title content =
 
     else
         div [ class "modal" ]
-            [ div [ class "material" ]
+            [ div [ class "paper" ]
                 [ header []
                     [ h2 [] [ text title ]
                     , button [ class "close-button", onClick close ] [ text "✕" ]
