@@ -10,7 +10,7 @@ import FontAwesome.Regular as FA
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
-import Html.Lazy exposing (lazy3, lazy4)
+import Html.Lazy exposing (lazy3, lazy5)
 import Json.Encode as JE
 import List.Extra as List
 import Random
@@ -38,9 +38,11 @@ https://github.com/philer/set-card-game"""
 
 type alias Model =
     { gameStatus : GameStatus
-    , players : Array Player
-    , showRules : Bool
     , cardSize : Float
+    , players : Array Player
+    , colors : List Color
+    , showColorSelection : Bool
+    , showRules : Bool
     }
 
 
@@ -109,15 +111,22 @@ type alias Color =
     String
 
 
-colors : Array Color
-colors =
-    Array.fromList [ "red", "green", "blue" ]
+colorChoices : List Color
+colorChoices =
+    [ "red"
+    , "green"
+    , "blue"
+    , "purple"
+    , "yellow"
+    , "cyan"
+    , "grey"
+    ]
 
 
-getColor : Card -> Color
-getColor card =
-    Array.get (card // 100 |> modBy 10) colors
-        |> Maybe.withDefault "INVALID_COLORS"
+getColor : List Color -> Card -> Color
+getColor colors card =
+    List.getAt (card // 100 |> modBy 10) colors
+        |> Maybe.withDefault "grey"
 
 
 type alias Count =
@@ -184,16 +193,30 @@ consoleErr =
 port playerNamesPort : JE.Value -> Cmd msg
 
 
-storePlayerNames : Model -> Cmd msg
-storePlayerNames { players } =
-    JE.array (.name >> JE.string) players |> playerNamesPort
+storePlayerNames : Array Player -> Cmd msg
+storePlayerNames =
+    JE.array (.name >> JE.string) >> playerNamesPort
+
+
+port colorsPort : JE.Value -> Cmd msg
+
+
+storeColors : List Color -> Cmd msg
+storeColors =
+    JE.list JE.string >> colorsPort
 
 
 
 -- MAIN
 
 
-main : Program (Maybe (Array String)) Model Msg
+type alias Args =
+    { playerNames : Maybe (List String)
+    , colors : Maybe (List Color)
+    }
+
+
+main : Program Args Model Msg
 main =
     Browser.document
         { init = init
@@ -208,16 +231,18 @@ updateCardSize =
     Task.attempt SetCardSize (Dom.getElement "cards")
 
 
-init : Maybe (Array String) -> ( Model, Cmd Msg )
-init flags =
-    let
-        playerNames =
-            Maybe.withDefault (Array.fromList [ "Player 1", "Player 2" ]) flags
-    in
+init : Args -> ( Model, Cmd Msg )
+init { playerNames, colors } =
     ( { gameStatus = Preparation
-      , players = Array.map newPlayer playerNames
-      , showRules = False
       , cardSize = 200 -- arbitrary value
+      , players =
+            playerNames
+                |> Maybe.withDefault [ "Player 1", "Player 2" ]
+                |> List.map newPlayer
+                |> Array.fromList
+      , colors = colors |> Maybe.withDefault [ "red", "green", "blue" ]
+      , showColorSelection = False
+      , showRules = False
       }
     , Cmd.batch
         [ consoleLog banner
@@ -231,6 +256,9 @@ type Msg
     | WindowResize
     | SetCardSize (Result Dom.Error Dom.Element)
     | ToggleRules
+    | ToggleColorSelection
+    | SelectColor Color
+      --| SetColors
       -- player management
     | AddPlayer
     | RemovePlayer Int
@@ -247,7 +275,7 @@ type Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg ({ players } as model) =
+update msg model =
     case msg of
         NoOp ->
             ( model, Cmd.none )
@@ -263,9 +291,6 @@ update msg ({ players } as model) =
                 ratio =
                     1.1
 
-                ( columns, rows ) =
-                    ( 5, 3 )
-
                 ( w, h ) =
                     if element.width / element.height < ratio then
                         ( element.width, element.width / ratio )
@@ -277,7 +302,7 @@ update msg ({ players } as model) =
                     w * 0.01
 
                 height =
-                    (h - gap * (rows + 1)) / rows
+                    (h - gap * 4) / 3
             in
             ( { model | cardSize = height }
             , Cmd.none
@@ -286,17 +311,37 @@ update msg ({ players } as model) =
         ToggleRules ->
             ( { model | showRules = not model.showRules }, Cmd.none )
 
+        ToggleColorSelection ->
+            ( { model | showColorSelection = not model.showColorSelection }, Cmd.none )
+
+        SelectColor color ->
+            let
+                colors =
+                    List.drop 1 model.colors ++ [ color ]
+            in
+            ( { model | colors = colors }
+            , storeColors colors
+            )
+
+        -- TODO
         AddPlayer ->
             let
                 name =
-                    "Player " ++ (String.fromInt <| Array.length players + 1)
+                    "Player " ++ (String.fromInt <| Array.length model.players + 1)
+
+                players =
+                    Array.push (newPlayer name) model.players
             in
-            ( { model | players = Array.push (newPlayer name) players }
+            ( { model | players = players }
             , updateCardSize
             )
 
         RemovePlayer index ->
-            ( { model | players = Array.removeAt index players }
+            let
+                players =
+                    Array.removeAt index model.players
+            in
+            ( { model | players = players }
             , updateCardSize
             )
 
@@ -306,7 +351,7 @@ update msg ({ players } as model) =
         NewGame ->
             ( { model
                 | gameStatus = Preparation
-                , players = Array.map (.name >> newPlayer) players
+                , players = Array.map (.name >> newPlayer) model.players
               }
             , Cmd.none
             )
@@ -314,7 +359,7 @@ update msg ({ players } as model) =
         RequestStartGame ->
             ( model
             , Cmd.batch
-                [ storePlayerNames model
+                [ storePlayerNames model.players
                 , Random.generate StartGame (shuffle generateDeck)
                 , updateCardSize
                 ]
@@ -554,8 +599,13 @@ findValidTriple =
 view : Model -> List (Html Msg)
 view model =
     [ h1 [] [ text "SET!" ]
-    , button [ id "rules-button", onClick ToggleRules ] [ text "Rules" ]
+    , div [ id "tools" ]
+        [ button [ onClick ToggleRules ] [ text "Rules" ]
+        , text "·"
+        , button [ onClick ToggleColorSelection ] [ text "Colors" ]
+        ]
     , viewRules model
+    , viewColorSelection model
     , viewPlayers model
     , viewCards model
     , viewInfo model
@@ -629,7 +679,7 @@ viewPlayer canGuess index { name, score, blocked } =
 
 
 viewCards : Model -> Html Msg
-viewCards { gameStatus, cardSize } =
+viewCards { gameStatus, cardSize, colors } =
     div
         [ id "cards"
         , class <|
@@ -646,9 +696,9 @@ viewCards { gameStatus, cardSize } =
     <|
         case gameStatus of
             Preparation ->
-                [ viewCard cardSize 2
-                , viewCard cardSize 1111
-                , viewCard cardSize 2220
+                [ viewCard cardSize colors 2
+                , viewCard cardSize colors 1111
+                , viewCard cardSize colors 2220
                 , button [ class "paper start-button", onClick RequestStartGame ]
                     [ text "Start" ]
                 ]
@@ -656,9 +706,10 @@ viewCards { gameStatus, cardSize } =
             Started { cards, selectedCards, hintCards } ->
                 List.map
                     (\card ->
-                        lazy4
+                        lazy5
                             viewCardButton
                             cardSize
+                            colors
                             (List.member card selectedCards)
                             (List.member card hintCards)
                             card
@@ -666,7 +717,7 @@ viewCards { gameStatus, cardSize } =
                     cards
 
             Over cards ->
-                List.map (viewCard cardSize) cards
+                List.map (viewCard cardSize colors) cards
                     ++ [ div [ class "game-over-screen" ]
                             [ div [ class "game-over-text" ] [ text "Game Over" ]
                             , button [ class "paper new-game-button", onClick NewGame ]
@@ -675,11 +726,11 @@ viewCards { gameStatus, cardSize } =
                        ]
 
 
-viewCard : Float -> Card -> Html Msg
-viewCard size card =
+viewCard : Float -> List Color -> Card -> Html Msg
+viewCard size colors card =
     let
         color =
-            getColor card
+            getColor colors card
     in
     div
         [ classList
@@ -693,11 +744,11 @@ viewCard size card =
         (List.repeat (getCount card) <| lazy3 shape2svg (getShape card) (getPattern card) color)
 
 
-viewCardButton : Float -> Bool -> Bool -> Card -> Html Msg
-viewCardButton size selected highlighted card =
+viewCardButton : Float -> List Color -> Bool -> Bool -> Card -> Html Msg
+viewCardButton size colors selected highlighted card =
     let
         color =
-            getColor card
+            getColor colors card
     in
     button
         [ classList
@@ -762,10 +813,10 @@ viewModal open close title content =
 
 
 viewRules : Model -> Html Msg
-viewRules { showRules } =
+viewRules { showRules, colors } =
     let
         smallCard =
-            viewCard 120
+            viewCard 120 colors
 
         viewList : List (Html msg) -> Html msg
         viewList items =
@@ -791,10 +842,10 @@ viewRules { showRules } =
         , h3 [] [ text "Examples:" ]
         , h4 [] [ text "✔️ Correct set:" ]
         , viewExample [ 222, 1222, 2222 ]
-            [ "✔️ All cards have the same color (blue)."
-            , "✔️ All cards have the same shape (oval)."
-            , "✔️ All cards have the same pattern (empty)."
-            , "✔️ All cards have different numbers of symbols (1, 2 and 3)."
+            [ "✔️ All cards have the same color."
+            , "✔️ All cards have the same shape."
+            , "✔️ All cards have the same pattern."
+            , "✔️ All cards have different numbers of symbols."
             ]
         , h4 [] [ text "✔️ Correct set:" ]
         , viewExample [ 1002, 1111, 1220 ]
@@ -810,6 +861,32 @@ viewRules { showRules } =
             , "✔️ All cards have different patterns."
             , "✔️ All cards have the same number of symbols."
             ]
+        ]
+
+
+viewColorSelection : Model -> Html Msg
+viewColorSelection { showColorSelection, colors } =
+    viewModal showColorSelection
+        ToggleColorSelection
+        "Select colors"
+        [ div [ id "color-choices" ] (List.map (\choice -> viewColorCard (List.member choice colors) choice) colorChoices) ]
+
+
+viewColorCard : Bool -> Color -> Html Msg
+viewColorCard selected color =
+    button
+        [ classList
+            [ ( "paper", True )
+            , ( "card", True )
+            , ( "card-" ++ color, True )
+            , ( "selected", selected )
+            ]
+        , style "font-size" "120px"
+        , onClick <| SelectColor color
+        ]
+        [ shape2svg "rectangle" "empty" color
+        , shape2svg "ellipse" "half" color
+        , shape2svg "tilde" "full" color
         ]
 
 
@@ -867,7 +944,7 @@ svgDefs =
         [ SvgA.class "svg-defs" ]
         [ Svg.defs [] <|
             [ rectangle, tilde, ellipse ]
-                ++ List.map svgPatternHatch [ "red", "green", "blue" ]
+                ++ List.map svgPatternHatch colorChoices
         ]
 
 
@@ -922,7 +999,8 @@ svgPatternHatch color =
             , SvgA.x2 "0"
             , SvgA.y2 "5"
             , SvgA.style <| "stroke-width:2.5"
-            , SvgA.class <| "stroke-" ++ color
+
+            --, SvgA.class <| "stroke-" ++ color
             ]
             []
         ]

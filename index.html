@@ -14,12 +14,21 @@
       const LOCAL_STORAGE_PREFIX = "set-card-game";
 
       const playerNamesKey = LOCAL_STORAGE_PREFIX + ".player-names";
+      const colorsKey = LOCAL_STORAGE_PREFIX + ".colors";
       const playerNames = localStorage.getItem(playerNamesKey);
+      const colors = localStorage.getItem(colorsKey);
       const app = Elm.Main.init({
-        flags: playerNames ? JSON.parse(playerNames) : null
+        flags: {
+          playerNames: playerNames ? JSON.parse(playerNames) : null,
+          colors: colors ? JSON.parse(colors) : null,
+        }
       });
+
       app.ports.playerNamesPort.subscribe(data => {
         localStorage.setItem(playerNamesKey, JSON.stringify(data))
+      });
+      app.ports.colorsPort.subscribe(data => {
+        localStorage.setItem(colorsKey, JSON.stringify(data))
       });
 
       app.ports.consoleLogPort.subscribe(console.log);

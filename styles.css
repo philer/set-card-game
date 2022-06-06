@@ -1,7 +1,13 @@
 :root {
-    --red: #f44;
-    --green: #2b2;
-    --blue: #66f;
+    --red: hsl(0, 100%, 63.3%);       /* #f44 */
+    --green: hsl(120, 69.2%, 43.3%);  /* #2b2 */
+    --blue: hsl(240, 100%, 70%);      /* #66f */
+    --purple: hsl(270, 100%, 63.3%);
+    --yellow: hsl(45, 80%, 53.3%);
+    --cyan: hsl(180, 80%, 43.3%);
+    --grey: hsl(0, 0%, 53.3%);
+    --darkgrey: #555;
+    --lightgrey: #888;
     --text-color: #666;
     --shadow-lvl1: 1px 1px 2px #0003,
                    0 0 3px #0003;
@@ -12,19 +18,64 @@
 }
 .card-red {
     --fg-color: var(--red);
-    --bg-color: #fee;
-    --highlight-color: #f99;
+    --bg-color: hsl(0, 100%, 95%); /* #fee */
+    --highlight-color: hsl(0, 100%, 80%); /* #f99 */
 }
+#pattern-diagonal-hatch-red { stroke: var(--red); }
+.shape-half.shape-red { fill: url(#pattern-diagonal-hatch-red); }
+
 .card-green {
     --fg-color: var(--green);
-    --bg-color: #efe;
-    --highlight-color: #8c8;
+    --bg-color: hsl(120, 69.2%, 95%); /* #efe */
+    --highlight-color: hsl(120, 50%, 70%); /* #8c8 */
 }
+#pattern-diagonal-hatch-green { stroke: var(--green); }
+.shape-half.shape-green { fill: url(#pattern-diagonal-hatch-green); }
+
 .card-blue {
     --fg-color: var(--blue);
-    --bg-color: #eef;
-    --highlight-color: #bbf;
+    --bg-color: hsl(240, 100%, 95%); /* #eef */
+    --highlight-color: hsl(240, 100%, 80%); /* #bbf */
 }
+#pattern-diagonal-hatch-blue { stroke: var(--blue); }
+.shape-half.shape-blue { fill: url(#pattern-diagonal-hatch-blue); }
+
+.card-purple {
+    --fg-color: var(--purple);
+    --bg-color: hsl(270, 100%, 95%); /* #fdf */
+    --highlight-color: hsl(270, 100%, 80%); /* #daf */
+}
+#pattern-diagonal-hatch-purple { stroke: var(--purple); }
+.shape-half.shape-purple { fill: url(#pattern-diagonal-hatch-purple); }
+
+.card-yellow {
+    --fg-color: var(--yellow);
+    --bg-color: hsl(45, 80%, 95%);
+    --highlight-color: hsl(45, 80%, 70%);
+}
+#pattern-diagonal-hatch-yellow { stroke: var(--yellow); }
+.shape-half.shape-yellow { fill: url(#pattern-diagonal-hatch-yellow); }
+
+.card-cyan {
+    --fg-color: var(--cyan);
+    --bg-color: hsl(180, 80%,95%);
+    --highlight-color: hsl(180, 80%, 75%);
+}
+#pattern-diagonal-hatch-cyan { stroke: var(--cyan); }
+.shape-half.shape-cyan { fill: url(#pattern-diagonal-hatch-cyan); }
+
+.card-grey {
+    --fg-color: var(--grey);
+    --bg-color: hsl(0, 0%,95%);
+    --highlight-color: hsl(0, 0%, 80%);
+}
+#pattern-diagonal-hatch-grey { stroke: var(--grey); }
+.shape-half.shape-grey { fill: url(#pattern-diagonal-hatch-grey); }
+
+
+
+
+
 
 @font-face {
   font-family: 'Montserrat';
@@ -96,10 +147,10 @@ body {
     grid-template-columns: [left sidebar] 16rem [sidebar-end main] 1fr [main-end right];
     grid-template-rows:
         [top title] max-content
-        [title-end players] 1fr
+        [title-end tools] max-content
+        [tools-end players] 1fr
         [players-end info] max-content
-        [info-end rules-button] max-content
-        [rules-button-end bottom];
+        [info-end bottom];
     grid-column-gap: 1rem;
     padding: 1rem;
     align-items: stretch;
@@ -125,9 +176,12 @@ h1 {
     display: flex;
     flex-direction: column;
 }
-#rules-button {
-    grid-area: rules-button / sidebar / rules-button-end / sidebar-end;
-    padding-top: 1em;
+#tools {
+    grid-area: tools / sidebar / tools-end / sidebar-end;
+    padding: .5em;
+    display: flex;
+    justify-content: center;
+    gap: .5em;
 }
 #cards {
     grid-area: top / main / bottom / main-end;
@@ -351,8 +405,8 @@ button.remove-player-button {
 }
 
 body .card {
-    --card-inner-glow: inset 0 0 4vmin;
-    --card-inner-border: inset 0 0 0 1vmin;
+    --card-inner-glow: inset 0 0 .12em;
+    --card-inner-border: inset 0 0 0 .05em;
     margin: 0;
     height: 1em;
     width: .667em;
@@ -371,17 +425,24 @@ body .card {
                 var(--card-inner-glow) #eee;
 }
 @media (any-hover) {
-    #cards .card:hover {
-        background: var(--bg-color);
+    .card:hover {
+        background: var(--bg-color) !important;
         box-shadow: var(--shadow-lvl1),
-                    var(--card-inner-glow) var(--highlight-color);
+                    var(--card-inner-glow) var(--highlight-color) !important;
     }
 }
-#cards .card.selected {
-    background: var(--bg-color);
+.card.selected {
+    background: var(--bg-color) !important;
     box-shadow: var(--shadow-lvl1),
-                var(--card-inner-border) var(--highlight-color);
+                var(--card-inner-border) var(--highlight-color) !important;
 }
+
+#color-choices {
+    display: flex;
+    flex-flow: row wrap;
+    gap: .5em;
+}
+
 .example {
     display: flex;
     gap: .5em;
@@ -413,9 +474,3 @@ body .card {
     fill: var(--fg-color);
 }
 .shape-empty { fill: none; }
-#pattern-diagonal-hatch-red { stroke: var(--red); }
-#pattern-diagonal-hatch-green { stroke: var(--green); }
-#pattern-diagonal-hatch-blue { stroke: var(--blue); }
-.shape-half.shape-red { fill: url(#pattern-diagonal-hatch-red); }
-.shape-half.shape-green { fill: url(#pattern-diagonal-hatch-green); }
-.shape-half.shape-blue { fill: url(#pattern-diagonal-hatch-blue); }
