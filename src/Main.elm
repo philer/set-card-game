@@ -11,6 +11,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Html.Lazy exposing (lazy3, lazy5)
+import Json.Decode as JD
 import Json.Encode as JE
 import List.Extra as List
 import Random
@@ -795,13 +796,28 @@ viewInfo { gameStatus } =
             text ""
 
 
-viewModal : Bool -> msg -> String -> List (Html msg) -> Html msg
-viewModal open close title content =
+onDirectClick : String -> msg -> Attribute msg
+onDirectClick id msg =
+    Html.Events.on "click"
+        (JD.at [ "target", "id" ] JD.string
+            |> JD.andThen
+                (\targetId ->
+                    if targetId == id then
+                        JD.succeed msg
+
+                    else
+                        JD.fail "not a direct click"
+                )
+        )
+
+
+viewModal : String -> Bool -> msg -> String -> List (Html msg) -> Html msg
+viewModal id open close title content =
     if not open then
         text ""
 
     else
-        div [ class "modal" ]
+        div [ class "modal", Html.Attributes.id id, onDirectClick id close ]
             [ div [ class "paper" ]
                 [ header []
                     [ h2 [] [ text title ]
@@ -828,7 +844,8 @@ viewRules { showRules, colors } =
                 List.map smallCard cards
                     ++ [ viewList <| List.map text explanations ]
     in
-    viewModal showRules
+    viewModal "rules-modal"
+        showRules
         ToggleRules
         "How to play"
         [ p [] [ text "Be the first to find a set of three cards that have…" ]
@@ -866,7 +883,8 @@ viewRules { showRules, colors } =
 
 viewColorSelection : Model -> Html Msg
 viewColorSelection { showColorSelection, colors } =
-    viewModal showColorSelection
+    viewModal "color-selection-modal"
+        showColorSelection
         ToggleColorSelection
         "Select colors"
         [ div [ id "color-choices" ] (List.map (\choice -> viewColorCard (List.member choice colors) choice) colorChoices) ]
