@@ -4,7 +4,7 @@
     --blue: hsl(240, 100%, 70%);      /* #66f */
     --purple: hsl(270, 100%, 63.3%);
     --yellow: hsl(45, 80%, 53.3%);
-    --cyan: hsl(180, 80%, 43.3%);
+    --cyan: hsl(180, 90%, 40%);
     --grey: hsl(0, 0%, 53.3%);
     --darkgrey: #555;
     --lightgrey: #888;
@@ -59,7 +59,7 @@
 .card-cyan {
     --fg-color: var(--cyan);
     --bg-color: hsl(180, 80%,95%);
-    --highlight-color: hsl(180, 80%, 75%);
+    --highlight-color: hsl(180, 60%, 70%);
 }
 #pattern-diagonal-hatch-cyan { stroke: var(--cyan); }
 .shape-half.shape-cyan { fill: url(#pattern-diagonal-hatch-cyan); }
@@ -406,7 +406,7 @@ button.remove-player-button {
 
 body .card {
     --card-inner-glow: inset 0 0 .12em;
-    --card-inner-border: inset 0 0 0 .05em;
+    --card-inner-border: inset 0 0 0 .033em;
     margin: 0;
     height: 1em;
     width: .667em;
